@@ -3,25 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js 케이크 제작 시뮬레이션 & 관람 - 최종</title>
+    <title>Little Patissier's Dream</title> 
+    
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet"> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f0f0f0; }
+        /* 🚨 폰트 및 UI 배경 변경 */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #333; 
+            font-family: 'Jua', sans-serif;
+        }
         canvas { display: block; }
+        
         /* 관람 모드 컨트롤 UI */
         .controls {
             position: absolute;
             top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: sans-serif;
+            padding: 15px;
+            border-radius: 8px;
             font-size: 14px;
             z-index: 100;
             user-select: none;
             text-align: left;
+            border: 2px solid #3de6c5; /* 강조 테두리 */
+            box-shadow: 0 0 10px rgba(61, 230, 197, 0.7); /* 빛나는 효과 */
         }
         .controls h3 { margin: 0 0 5px 0; border-bottom: 1px solid #444; padding-bottom: 5px; }
         .controls p { margin: 3px 0; }
@@ -36,33 +47,38 @@
             z-index: 100;
             display: none; 
             padding: 15px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), 0 0 10px #ffaa00; /* 게임 UI처럼 강조 */
             text-align: center;
+            border: 3px solid #ffaa00;
         }
         #topping-palette, #cream-palette {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             justify-content: center;
             margin-top: 10px;
         }
         .palette-item {
-            width: 50px;
-            height: 50px;
-            border: 3px solid transparent;
-            border-radius: 8px;
+            width: 60px;
+            height: 60px;
+            border: 4px solid transparent;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: bold;
             color: #333;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, transform 0.1s;
         }
-        .palette-item:hover { border-color: #3de6c5; }
-        .palette-item.selected { border-color: #3de6c5; }
+        .palette-item:hover { border-color: #ffaa00; }
+        .palette-item.selected { 
+            border-color: #3de6c5; 
+            transform: scale(1.05);
+            box-shadow: 0 0 5px #3de6c5;
+        }
         
         /* 메시지 창 */
         #message {
@@ -70,28 +86,70 @@
             top: 100px; 
             left: 50%;
             transform: translateX(-50%);
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.8);
+            padding: 25px 40px;
+            background: rgba(0, 0, 0, 0.9);
             color: white;
-            border-radius: 10px;
-            font-size: 20px;
+            border-radius: 15px;
+            font-size: 24px;
             z-index: 101;
             display: block; 
             text-align: center;
-            line-height: 1.5;
+            line-height: 1.6;
+            border: 3px solid #ffaa00;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.7);
+        }
+
+        /* 🚨 실시간 점수 오버레이 추가 */
+        #score-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 30px;
+            border-radius: 8px;
+            border: 3px solid #ffaa00;
+            z-index: 100;
+            display: none;
+            font-family: 'Jua', sans-serif;
+        }
+        #score-value {
+            color: #3de6c5;
+            font-weight: bold;
+        }
+        
+        /* 크림 바르기 미니게임 프로그레스 바 스타일 */
+        #spreading-progress-bar {
+            width: 80%;
+            height: 20px;
+            background-color: #555;
+            border-radius: 10px;
+            margin: 10px auto 0;
+            overflow: hidden;
+            border: 2px solid #ccc;
+        }
+        #spreading-progress-fill {
+            height: 100%;
+            width: 0%;
+            background-color: #3de6c5;
+            transition: width 0.1s linear;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
     
     <div id="message">
-        케이크 제작 시뮬레이션을 시작합니다!<br>
+        **Little Patissier's Dream**<br>케이크 제작 시뮬레이션을 시작합니다!<br>
         <span style="color: #3de6c5;">[Spacebar]</span>를 눌러 반죽 및 믹싱 과정을 진행하세요.
     </div>
 
+    <div id="score-overlay">
+        SCORE: <span id="score-value">0</span>
+    </div>
+
     <div id="palette-container">
-        <div>생크림 색상 선택 (클릭 후 케이크 클릭)</div>
+        <div>🍰 생크림 색상 선택 (클릭 후 케이크 클릭)</div>
         <div id="cream-palette">
             <div class="palette-item selected" data-type="cream" data-color="0xffffff" style="background-color: #ffffff;">흰색</div>
             <div class="palette-item" data-type="cream" data-color="0xffc0cb" style="background-color: #ffc0cb;">핑크</div>
@@ -99,12 +157,13 @@
             <div class="palette-item" data-type="cream" data-color="0xffd700" style="background-color: #ffd700;">고구마</div>
         </div>
         <hr style="border-color: #444; margin: 10px 0;">
-        <div>토핑 선택 (클릭 후 케이크 클릭)</div>
+        <div>🍓 토핑 선택 (클릭 후 케이크 클릭/드래그)</div>
         <div id="topping-palette">
             <div class="palette-item" data-type="strawberry" style="background-color: #ffcccc;">딸기</div>
             <div class="palette-item" data-type="sprinkle" style="background-color: #e0e0e0;">스프링클</div>
             <div class="palette-item" data-type="drizzle" style="background-color: #a0522d;">초콜릿</div>
             <div class="palette-item" data-type="cherry" style="background-color: #ff0000; color: white;">체리</div>
+            <div class="palette-item" data-type="piping" style="background-color: #ffffff; color: #333; border-color: #3de6c5;">파이핑</div>
         </div>
     </div>
 
@@ -113,11 +172,11 @@
         <p><span class="highlight">[P]</span> / <span class="highlight">[O]</span>: 원근 / 직교 카메라 전환</p>
         <p><span class="highlight">[↑] [↓] [←] [→]</span>: 케이크 이동</p>
         <p><span class="highlight">[1]</span> / <span class="highlight">[2]</span>: 카메라 위치 변경</p>
-        <p><span class="highlight">[L]</span>: 스포트 조명 색상 & 강도 변경</p>
+        <p><span class="highlight">[L]</span>: 조명 색상 변경</p>
         <p><span class="highlight">[Spacebar]</span>: 토핑 회전/정지</p>
         <p><span class="highlight">[C]</span>: 촛불 켜기/끄기</p>
         <hr style="border-color: #444; margin: 5px 0;">
-        <p><span class="highlight">[K]</span>: 케이크 전환 (제작 ↔ 다음 테마)</p>
+        <p><span class="highlight">[K]</span>: 케이크 전환 (제작 ↔ 테마)</p>
     </div>
 
 <script>
@@ -136,13 +195,29 @@ const BASE_ROTATION_SPEED = 0.001;
 const TOPPING_ROTATION_SPEED = 0.015;
 
 const scene = new THREE.Scene(); 
-scene.background = new THREE.Color(0xf0f0f0); 
+scene.background = new THREE.Color(0x555555); // 배경색 어둡게 변경
 
 // --- 모드 변수 ---
 let gameMode = 'MAKING'; 
-let makingStep = 0; 
+let makingStep = 0; // 0: 시작, 1: 믹싱 중, 2: 반죽 완료, 3: 굽기 완료, 4: 크림 펴바르기 완료 대기, 5: 장식 모드
 let selectedToppingType = null;
-let selectedCreamColor = 0xffffff; // 사용자 커스텀 케이크의 생크림 색상 저장용
+let selectedCreamColor = 0xffffff;
+
+// 🚨 점수 및 미니게임 변수 추가
+let score = 0;
+let toppingsCount = 0;
+let pipingActive = false;
+let lastPipingPoint = null;
+const MAX_TOPPING_RADIUS = 1.4; 
+const PIPING_CREAM_COLOR = 0xffffff; 
+const activeSplashMeshes = []; 
+
+// 🚨 크림 펴바르기 미니게임 변수
+let creamSpreadQuality = 0; 
+let spreadingActive = false;
+const MAX_SPREAD_COUNT = 20; // 20번 클릭/드래그로 100% 달성
+const MAX_SPREAD_TIME = 3000; // 3초 제한
+let spreadTimeoutId = null;
 
 const mouse = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
@@ -151,6 +226,8 @@ const raycaster = new THREE.Raycaster();
 const paletteContainer = document.getElementById('palette-container');
 const messageElement = document.getElementById('message');
 const controlsElement = document.getElementById('viewing-controls');
+const scoreOverlay = document.getElementById('score-overlay');
+
 
 // --- 1. 카메라 설정 ---
 const perspectiveCamera = new THREE.PerspectiveCamera(75, h_scr / v_scr, 0.1, 1000);
@@ -191,7 +268,7 @@ scene.add(frontLight);
 const lightColors = [0xffffff, 0xf183f3, 0x3de6c5, 0xffa500]; 
 let currentLightColorIndex = 0;
 
-// --- 3. 주방 환경 설정 ---
+// --- 3. 주방 환경 설정 (기존 코드 유지) ---
 const kitchenGroup = new THREE.Group();
 scene.add(kitchenGroup);
 
@@ -214,18 +291,31 @@ scene.add( gridHelper );
 
 // --- 4. 케이크 제작/모델링 요소 ---
 
-// 재질 정의
-const batterMaterial = new THREE.MeshPhongMaterial({ color: 0xf4d03f, shininess: 10 }); 
-// 🚨 bakedMaterial의 색상 코드: 0xe0b28a
-const bakedMaterial = new THREE.MeshPhongMaterial({ color: 0xe0b28a, shininess: 30 }); 
-const creamMaterial = new THREE.MeshPhongMaterial({ color: selectedCreamColor, shininess: 80 }); 
+// 🚨 텍스처 제거 및 Material 개선
+const bakedMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0xe0b28a, 
+    roughness: 0.8, 
+    metalness: 0.1 
+}); 
+const creamMaterial = new THREE.MeshStandardMaterial({ 
+    color: selectedCreamColor, 
+    roughness: 0.5, 
+    metalness: 0.01 
+}); 
 const strawberryMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, shininess: 50 }); 
 const chocolateMaterial = new THREE.MeshPhongMaterial({ color: 0x8b4513, shininess: 20 }); 
 const macaronMaterial = new THREE.MeshPhongMaterial({ color: 0xe0e0e0, shininess: 80 }); 
 const beanMaterial = new THREE.MeshPhongMaterial({ color: 0x803333, shininess: 20 }); 
 
+// 🚨 파이핑 크림 재질
+const pipingMaterial = new THREE.MeshStandardMaterial({ 
+    color: PIPING_CREAM_COLOR, 
+    roughness: 0.5, 
+    metalness: 0.01 
+});
 
-// 4-1. 믹싱 용기
+
+// 4-1. 믹싱 용기 (기존 코드 유지)
 const bowlGroup = new THREE.Group();
 bowlGroup.position.y = 1.0;
 scene.add(bowlGroup);
@@ -271,7 +361,7 @@ creamTop.receiveShadow = true;
 cakeGroup.add(creamTop);
 
 
-// 4-3. 토핑 그룹 (Custom, Theme)
+// 4-3. 토핑 그룹
 const customToppingGroup = new THREE.Group();
 customToppingGroup.position.y = 0.5 * CAKE_HEIGHT + 0.1;
 cakeGroup.add(customToppingGroup);
@@ -281,7 +371,7 @@ themeToppingGroup.position.y = 0.5 * CAKE_HEIGHT + 0.1;
 cakeGroup.add(themeToppingGroup);
 themeToppingGroup.visible = false; 
 
-// --- 촛불 (모든 케이크에 포함되도록 케이크 그룹의 자식으로 위치) ---
+// --- 촛불 (기존 코드 유지) ---
 const mainCandleGroup = new THREE.Group();
 mainCandleGroup.position.set(0, CAKE_HEIGHT * 0.5 + 0.15, 0); 
 cakeGroup.add(mainCandleGroup);
@@ -301,11 +391,10 @@ candleLight.visible = isCandleOn;
 flame.visible = isCandleOn;
 
 
-// 4-4. 테마별 토핑 (테마 그룹에 모두 배치)
+// 4-4. 테마별 토핑 (기존 코드 유지)
 const themeMeshes = new THREE.Group(); 
 themeToppingGroup.add(themeMeshes); 
 
-// 딸기
 const strawberryMeshes = [];
 [[1.0, 0], [-1.0, 0], [0.7, 0.7], [-0.7, 0.7], [0, -1.0]].forEach(pos => {
     const s = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), strawberryMaterial);
@@ -314,14 +403,12 @@ const strawberryMeshes = [];
     strawberryMeshes.push(s);
 });
 
-// 초콜릿 드리즐
 const chocolateDrizzle = new THREE.Mesh(new THREE.TorusKnotGeometry(1.3, 0.08, 64, 8, 2, 3), chocolateMaterial);
 chocolateDrizzle.position.set(0, -0.15, 0); 
 chocolateDrizzle.scale.set(1.0, 0.5, 1.0);
 chocolateDrizzle.rotation.x = Math.PI / 2;
 themeMeshes.add(chocolateDrizzle);
 
-// 고구마
 const sweetPotatoMeshes = [];
 const sweetPotatoGeometry = new THREE.SphereGeometry(0.3, 16, 16);
 [[0.5, 0.5, 0.8], [-0.5, 0.5, 1.2], [0, -0.7, 1.0], [1.0, -0.3, 0.9]].forEach(params => {
@@ -332,7 +419,6 @@ const sweetPotatoGeometry = new THREE.SphereGeometry(0.3, 16, 16);
     sweetPotatoMeshes.push(m);
 });
 
-// 녹차 (마카롱, 팥)
 const matchaMeshes = [];
 const macaronGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 32);
 [['macaron', 1.2, 0.5], ['macaron', -1.2, 0.5], ['macaron', 0.8, -0.9], 
@@ -350,7 +436,6 @@ const macaronGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 32);
     matchaMeshes.push(element);
 });
 
-// 스프링클 (테마 전용)
 const themeSprinkleMeshes = [];
 const sprinkleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8);
 const sprinkleColors = [0xffa500, 0x00ff00, 0x0000ff, 0xff00ff, 0xffff00]; 
@@ -375,7 +460,7 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 
-// --- 5. 케이크 종류 정의 ---
+// --- 5. 케이크 종류 정의 및 업데이트 함수 (기존 코드 유지) ---
 const CAKE_THEMES = [
     { body: 0x4a2c2a, cream: 0x7b3f00, topping: 'chocolate' }, 
     { body: 0xffe0e0, cream: 0xffffff, topping: 'strawberry' }, 
@@ -387,42 +472,33 @@ let isToppingRotating = true;
 
 
 function updateCakeTheme() {
-    // 1. 커스텀 vs 테마 모드 전환
     if (currentThemeIndex === -1) { 
-        // 🚀 커스텀 모드:
-        // 🚨 수정: 빵 몸통 재질을 원래의 bakedMaterial로 되돌리고, 색상도 명시적으로 재설정합니다.
         cakeBody.material = bakedMaterial;
-        cakeBody.material.color.set(0xe0b28a); // 연주홍색으로 명시적 재설정
+        cakeBody.material.color.set(0xe0b28a); 
         
-        // 이전에 저장된 생크림 색상으로 복원
         creamTop.material.color.set(selectedCreamColor); 
         
         customToppingGroup.visible = true;
         themeToppingGroup.visible = false;
         
     } else {
-        // 테마 모드
         const theme = CAKE_THEMES[currentThemeIndex];
         const toppingType = theme.topping;
         
-        // 테마 빵 색상 적용 (색상만 변경)
         cakeBody.material.color.set(theme.body);
-        // 테마 생크림 색상 적용
         creamTop.material.color.set(theme.cream);
         
         customToppingGroup.visible = false;
         themeToppingGroup.visible = true;
         
-        // 테마별 토핑 가시성 조절
         themeMeshes.children.forEach(m => m.visible = false);
         strawberryMeshes.forEach(s => s.visible = toppingType === 'strawberry');
         chocolateDrizzle.visible = toppingType === 'chocolate';
         sweetPotatoMeshes.forEach(s => s.visible = toppingType === 'sweetpotato');
         matchaMeshes.forEach(s => s.visible = toppingType === 'matcha');
         
-        // 스프링클 색상 변경 (테마 토핑일 때만 보이도록 설정)
         themeSprinkleMeshes.forEach((s, i) => {
-            s.visible = true; // 테마 모드일 때 스프링클 보이게 설정
+            s.visible = true;
             const material = s.material;
             if (toppingType === 'matcha') material.color.set(Math.random() > 0.5 ? 0x90ee90 : 0xffffff);
             else if (toppingType === 'sweetpotato') material.color.set(0x8b4513);
@@ -431,7 +507,6 @@ function updateCakeTheme() {
         });
     }
 
-    // 5. 재질 업데이트 요청
     cakeBody.material.needsUpdate = true;
     creamTop.material.needsUpdate = true;
 }
@@ -439,35 +514,57 @@ function updateCakeTheme() {
 
 // --- 6. 모드 전환 및 제작 단계 로직 ---
 
+// 🚨 점수 표시 업데이트 함수
+function updateScoreDisplay() {
+    const finalScore = Math.max(0, Math.round(score + (toppingsCount * 2)));
+    const scoreElement = document.getElementById('score-value');
+    if (scoreElement) {
+        scoreElement.textContent = finalScore;
+    }
+}
+
 function setGameMode(mode) {
     gameMode = mode;
     messageElement.style.display = 'none';
     paletteContainer.style.display = 'none';
     controlsElement.style.display = 'none';
+    scoreOverlay.style.display = 'none';
     bowlGroup.visible = false;
     cakeGroup.visible = false;
     
     mainCandleGroup.visible = true;
     candleLight.visible = isCandleOn;
     flame.visible = isCandleOn;
+    
+    // 미니게임 이벤트 리스너 제거
+    window.removeEventListener('mousedown', onSpreadingAction);
 
     if (mode === 'MAKING') {
         bowlGroup.visible = true;
         cakeBody.visible = false;
         creamTop.visible = false;
-        messageElement.innerHTML = `케이크 제작 시뮬레이션을 시작합니다!<br><span style="color: #3de6c5;">[Spacebar]</span>를 눌러 반죽 및 믹싱 과정을 진행하세요.`;
+        messageElement.innerHTML = `**Little Patissier's Dream**<br>케이크 제작 시뮬레이션을 시작합니다!<br><span style="color: #3de6c5;">[Spacebar]</span>를 눌러 반죽 및 믹싱 과정을 진행하세요.`;
         messageElement.style.display = 'block';
         makingStep = 0;
         mixingContent.visible = false;
         mixingContent.children.forEach(m => m.material.color.set(m.geometry.type === 'SphereGeometry' ? 0xffaa00 : 0xffffff)); 
+        
     } else if (mode === 'DECORATING') {
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
 
-        messageElement.innerHTML = `장식 모드: 아래 팔레트에서 <span class="highlight">생크림 색상</span> 또는 <span class="highlight">토핑</span>을 선택 후 케이크 윗면을 <span class="highlight">클릭</span>하여 적용하세요.<br>완료 후 <span style="color: #3de6c5;">[Enter]</span> 키를 누르세요.`;
+        // 🚨 점수 초기화 및 UI 업데이트
+        score = 0;
+        toppingsCount = 0;
+        customToppingGroup.children.length = 0; 
+        updateScoreDisplay();
+        
+        // 🚨 메시지 업데이트: Spacebar 추가
+        messageElement.innerHTML = `**장식 모드 (DECORATING)**<br>팔레트에서 <span class="highlight">생크림 색상</span> 또는 <span class="highlight">토핑</span>을 선택 후 케이크 윗면을 <span class="highlight">클릭/드래그</span>하세요.<br>완료 후 <span style="color: #3de6c5;">[Enter]</span> 또는 <span style="color: #3de6c5;">[Spacebar]</span> 키를 누르세요.`;
         messageElement.style.display = 'block';
         paletteContainer.style.display = 'block';
+        scoreOverlay.style.display = 'block'; // 점수 오버레이 표시
         customToppingGroup.visible = true;
         themeToppingGroup.visible = false;
         
@@ -477,6 +574,7 @@ function setGameMode(mode) {
         
         document.querySelectorAll('.palette-item').forEach(i => i.classList.remove('selected'));
         document.querySelector('.palette-item[data-color="0xffffff"]').classList.add('selected');
+
     } else if (mode === 'VIEWING') {
         cakeGroup.visible = true;
         cakeBody.visible = true;
@@ -484,74 +582,180 @@ function setGameMode(mode) {
 
         controlsElement.style.display = 'block';
         
-        // VIEWING 모드 진입 시 (DECORATING 완료 후) 
-        // 현재 커스텀 케이크의 생크림 색상을 selectedCreamColor에 저장
         selectedCreamColor = creamTop.material.color.getHex(); 
         
         currentThemeIndex = -1; 
         updateCakeTheme();
+
+        const finalScore = Math.max(0, Math.round(score + (toppingsCount * 2))); 
+        messageElement.innerHTML = `⭐ 케이크 완성! 최종 점수: <span style="color: #ffaa00; font-size: 1.5em;">${finalScore}</span>점! ⭐<br> [Enter]를 눌러 관람 모드를 시작하세요.`;
+        messageElement.style.display = 'block';
+        setTimeout(() => messageElement.style.display = 'none', 3000); 
     }
 }
+
+
+// 🚨 크림 펴바르기 미니게임 완료 함수
+function finishSpreadingGame() {
+    if (!spreadingActive) return;
+    
+    spreadingActive = false;
+    clearTimeout(spreadTimeoutId); // 타이머 취소
+    
+    // 프로그레스 바 제거
+    const progressBar = document.getElementById('spreading-progress-bar');
+    if (progressBar) progressBar.remove();
+    
+    creamTop.visible = true; // 크림 덮기
+    window.removeEventListener('mousedown', onSpreadingAction);
+
+    const finalQuality = Math.min(100, Math.round((creamSpreadQuality / MAX_SPREAD_COUNT) * 100));
+    
+    let scoreBonus = 0;
+    let messageText;
+    const finalColor = new THREE.Color(0xffffff);
+    
+    if (finalQuality >= 90) {
+        scoreBonus = 50;
+        messageText = `✨ **대성공!** 크림이 완벽하게 발렸습니다! (+${scoreBonus}점 보너스)`;
+    } else if (finalQuality >= 50) {
+        scoreBonus = 20;
+        messageText = `✅ **성공!** 크림이 잘 발렸습니다. (+${scoreBonus}점 보너스)`;
+    } else {
+        scoreBonus = -30;
+        messageText = `❌ **실패!** 크림이 울퉁불퉁합니다! (-30점 페널티)`;
+        finalColor.set(0xcccccc); // 실패 페널티로 크림 색상을 회색으로
+    }
+    
+    // 최종 품질에 따라 크림 색상 결정
+    creamTop.material.color.set(finalColor);
+    
+    score += scoreBonus;
+    updateScoreDisplay();
+
+    messageElement.innerHTML = `${messageText}<br><span style="color: #3de6c5;">[Spacebar]</span>를 눌러 장식 모드에 진입하세요.`;
+    messageElement.style.display = 'block';
+    
+    makingStep = 4; // Spacebar 입력을 기다리기 위해 makingStep을 4로 설정
+}
+
+// 🚨 크림 펴바르기 액션 함수
+function onSpreadingAction() {
+    if (gameMode !== 'MAKING' || !spreadingActive) return;
+    
+    if (creamSpreadQuality < MAX_SPREAD_COUNT) {
+        creamSpreadQuality++; 
+        
+        // 품질에 따라 케이크 표면 색상을 변경하여 크림이 덮이는 것을 시각적으로 표현
+        const mixColor = new THREE.Color(0xe0b28a).lerp(new THREE.Color(0xffffff), creamSpreadQuality / MAX_SPREAD_COUNT);
+        cakeBody.material.color.set(mixColor.getHex());
+        
+        // 프로그레스 바 업데이트
+        const progressFill = document.getElementById('spreading-progress-fill');
+        if (progressFill) {
+            progressFill.style.width = `${(creamSpreadQuality / MAX_SPREAD_COUNT) * 100}%`;
+        }
+
+        if (creamSpreadQuality >= MAX_SPREAD_COUNT) {
+            finishSpreadingGame();
+        }
+    }
+}
+
 
 function advanceMakingStep() {
     makingStep++;
 
     if (makingStep === 1) { 
         mixingContent.visible = true;
-        messageElement.innerHTML = `믹싱: 계란, 밀가루, 설탕을 넣고 있습니다.<br> <span style="color: #3de6c5;">[Spacebar]</span>로 반죽을 완료하세요.`;
+        messageElement.innerHTML = `**믹싱!** 계란, 밀가루, 설탕을 넣고 있습니다.<br> <span style="color: #3de6c5;">[Spacebar]</span>로 반죽을 완료하세요.`;
     } else if (makingStep === 2) { 
         mixingContent.children.forEach(m => m.material.color.set(0xf4d03f));
-        messageElement.innerHTML = `반죽 완료! 오븐에 구울 준비가 되었습니다.<br> <span style="color: #3de6c5;">[Spacebar]</span>로 굽기를 시작하세요.`;
+        messageElement.innerHTML = `**반죽 완료!** 오븐에 구울 준비가 되었습니다.<br> <span style="color: #3de6c5;">[Spacebar]</span>로 굽기를 시작하세요.`;
     } else if (makingStep === 3) { 
         bowlGroup.visible = false;
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
-        // 🚨 수정: 굽기 완료 시 빵 몸통 색상을 초기 bakedMaterial의 색상으로 명시적으로 설정
         cakeBody.material = bakedMaterial; 
-        cakeBody.material.color.set(0xe0b28a); // 연주홍색
+        cakeBody.material.color.set(0xe0b28a); 
         
-        messageElement.innerHTML = `굽기 완료 및 적층! 이제 장식합니다.<br> <span style="color: #3de6c5;">[Spacebar]</span>로 장식 모드에 진입하세요.`;
+        // 🚨 크림 펴바르기 미니게임 시작 준비 (makingStep=3에서 다음 Spacebar 입력을 기다림)
+        messageElement.innerHTML = `**굽기 완료 및 적층!** 이제 크림을 바릅니다.<br> <span style="color: #3de6c5;">[Spacebar]</span>를 눌러 **크림 펴바르기 미니게임**을 시작하세요.`;
+
     } else if (makingStep === 4) { 
+        // 🚨 크림 펴바르기 미니게임 시작
+        creamTop.visible = false; 
+        cakeBody.material.color.set(0xe0b28a); // 크림 바르기 시작 시 빵 색상으로 초기화
+
+        messageElement.innerHTML = `**[크림 펴바르기 미니게임]**<br>케이크 몸통을 빠르게 <span style="color: #ffaa00;">클릭/드래그</span>해서 크림을 펴바르세요! <span style="color: #3de6c5;">3초 제한!</span>
+        <div id="spreading-progress-bar"><div id="spreading-progress-fill"></div></div>`;
+        messageElement.style.display = 'block';
+        
+        creamSpreadQuality = 0; 
+        spreadingActive = true;
+        
+        // 3초 후 강제 종료 (Time Out)
+        spreadTimeoutId = setTimeout(() => {
+            if (spreadingActive) finishSpreadingGame();
+        }, MAX_SPREAD_TIME);
+        
+        window.addEventListener('mousedown', onSpreadingAction);
+        
+    } else if (makingStep === 5) { // 장식 모드 진입
         setGameMode('DECORATING');
     }
 }
 
 
 window.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-
+    // 🚨 k 변수를 그대로 사용하되, Spacebar는 e.code로도 체크하여 안정성을 높입니다.
+    const k = e.key.toLowerCase(); 
+    const isSpace = (k === ' ' || e.code === 'Space');
+    
     // 제작 모드 (MAKING) 컨트롤
-    if (gameMode === 'MAKING' && k === ' ') {
-        advanceMakingStep();
-        return;
+    if (gameMode === 'MAKING' && isSpace) { 
+        
+        // 1. 미니게임 완료 후 장식 모드 진입 (Step 4 -> 5)
+        if (makingStep === 4 && !spreadingActive) { 
+            makingStep = 5;
+            advanceMakingStep();
+            e.preventDefault(); 
+            return;
+        } 
+        
+        // 2. 일반 제작 단계 진행 (Step 0, 1, 2, 3 -> 1, 2, 3, 4)
+        else if (makingStep < 4) {
+            advanceMakingStep();
+            e.preventDefault(); 
+            return;
+        }
     }
 
     // 장식 모드 (DECORATING) 컨트롤
-    if (gameMode === 'DECORATING' && e.key === 'Enter') {
+    const isEnterOrSpace = (k === 'enter' || isSpace);
+    if (gameMode === 'DECORATING' && isEnterOrSpace) {
         setGameMode('VIEWING');
+        e.preventDefault(); // Spacebar/Enter 기본 동작 방지
         return;
     }
     
     // 3. 관람 모드 (VIEWING) 컨트롤
     if (gameMode !== 'VIEWING') return;
 
-    // 테마 케이크 전환: K 키
     if (k === 'k') {
         if (currentThemeIndex === -1) { 
-            // 커스텀 모드에서 테마 모드로 전환 직전에 현재 색상 저장
             selectedCreamColor = creamTop.material.color.getHex(); 
             currentThemeIndex = 0; 
         } else {
             currentThemeIndex++;
             if (currentThemeIndex >= CAKE_THEMES.length) {
-                currentThemeIndex = -1; // 커스텀 모드로 돌아가기
+                currentThemeIndex = -1; 
             }
         }
         updateCakeTheme();
     }
     
-    // 조명 색상 변경: L 키
     if (k === 'l') {
         currentLightColorIndex = (currentLightColorIndex + 1) % lightColors.length;
         const newColor = lightColors[currentLightColorIndex];
@@ -560,14 +764,13 @@ window.addEventListener('keydown', (e) => {
         spotLight.intensity = (currentLightColorIndex === 0) ? 2.0 : 1.5;
     }
 
-    // 카메라 위치 변경: 1/2 키
     if (k === '1' || k === '2') {
         const targetPosition = new THREE.Vector3();
         cakeGroup.getWorldPosition(targetPosition); 
         
-        if (k === '1') { // 측면 샷
+        if (k === '1') { 
             perspectiveCamera.position.set(targetPosition.x + 4, targetPosition.y + 1, targetPosition.z);
-        } else if (k === '2') { // 정면 샷 (약간 위에서)
+        } else if (k === '2') { 
             perspectiveCamera.position.set(targetPosition.x, targetPosition.y + 3, targetPosition.z + 5);
         }
 
@@ -577,17 +780,14 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
-    // 카메라, 이동, 회전, 촛불 등 나머지 관람 컨트롤
     if (k === 'p') currentCamera = perspectiveCamera; 
     else if (k === 'o') currentCamera = orthographicCamera; 
     currentCamera.updateProjectionMatrix();
 
-    if (e.key === 'ArrowUp') cakeGroup.position.z -= moveSpeed; 
-    else if (e.key === 'ArrowDown') cakeGroup.position.z += moveSpeed;
-    else if (e.key === 'ArrowLeft') cakeGroup.position.x -= moveSpeed;
-    else if (e.key === 'ArrowRight') cakeGroup.position.x += moveSpeed;
-    
-    if (k === ' ') isToppingRotating = !isToppingRotating;
+    if (isSpace) {
+        isToppingRotating = !isToppingRotating;
+        e.preventDefault();
+    }
 
     if (k === 'c') {
         isCandleOn = !isCandleOn;
@@ -599,7 +799,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 
-// --- 7. 장식 모드 클릭 및 팔레트 로직 ---
+// --- 7. 장식 모드 클릭 및 팔레트 로직 (파이핑 시뮬레이션 및 정교화된 배치) ---
 
 document.querySelectorAll('.palette-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -612,6 +812,7 @@ document.querySelectorAll('.palette-item').forEach(item => {
         if (type === 'cream') {
             selectedToppingType = null;
             selectedCreamColor = parseInt(item.dataset.color);
+            pipingMaterial.color.set(selectedCreamColor); 
         } else {
             selectedToppingType = type;
             selectedCreamColor = 0; 
@@ -619,10 +820,102 @@ document.querySelectorAll('.palette-item').forEach(item => {
     });
 });
 
-window.addEventListener('click', onDecoratingClick);
 
-function onDecoratingClick(event) {
+window.addEventListener('mousedown', onMouseDown);
+window.addEventListener('mousemove', onMouseMove);
+window.addEventListener('mouseup', onMouseUp);
+
+
+// 🚨 파이핑 조각 생성 함수 (원뿔 모양)
+function createPipingSegment(x, y, z) {
+    const distance = new THREE.Vector2(x, z).length();
+    if (distance > MAX_TOPPING_RADIUS) return; 
+
+    // 🚨 원뿔(ConeGeometry)을 사용하여 파이핑 크림 모양 시뮬레이션
+    const pipingGeometry = new THREE.ConeGeometry(0.06, 0.12, 16); 
+    pipingGeometry.translate(0, 0.06, 0); 
+    
+    const newTopping = new THREE.Mesh(pipingGeometry, pipingMaterial.clone());
+    newTopping.position.set(x, 0.05, z); 
+    newTopping.rotation.y = Math.random() * Math.PI * 2; 
+    
+    newTopping.castShadow = true;
+    newTopping.name = 'piping_segment';
+    customToppingGroup.add(newTopping);
+    
+    toppingsCount++;
+    
+    // 🚨 스플래시 이벤트 추가
+    activeSplashMeshes.push({ mesh: newTopping, scale: 1.0, timer: 0, duration: 30 });
+    
+    // 🚨 점수 시스템: 중앙에서 너무 벗어난 파이핑에 대해 페널티
+    if (distance > 1.0) { 
+        score -= 0.1;
+    } else {
+        score += 0.05;
+    }
+    updateScoreDisplay();
+}
+
+function onMouseDown(event) {
+    if (gameMode !== 'DECORATING' && gameMode !== 'MAKING') { // 미니게임 중에도 클릭 이벤트 처리
+        return;
+    }
+    
+    // 🚨 크림 펴바르기 미니게임 처리
+    if (spreadingActive) {
+        onSpreadingAction(event);
+        return;
+    }
+    
     if (gameMode !== 'DECORATING') return;
+    
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, currentCamera);
+    const intersects = raycaster.intersectObject(creamTop); 
+    
+    if (intersects.length > 0) {
+        if (selectedToppingType === 'piping') {
+            pipingActive = true;
+            const point = intersects[0].point;
+            lastPipingPoint = point;
+            createPipingSegment(point.x, point.y, point.z);
+        } else {
+            onDecoratingClick(event);
+        }
+    }
+}
+
+function onMouseMove(event) {
+    if (gameMode !== 'DECORATING' || !pipingActive) return;
+
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, currentCamera);
+    const intersects = raycaster.intersectObject(creamTop); 
+
+    if (intersects.length > 0) {
+        const point = intersects[0].point;
+        if (lastPipingPoint && point.distanceTo(lastPipingPoint) > 0.08) { 
+            createPipingSegment(point.x, point.y, point.z);
+            lastPipingPoint = point;
+        }
+    }
+}
+
+function onMouseUp(event) {
+    if (gameMode !== 'DECORATING') return;
+    pipingActive = false;
+    lastPipingPoint = null;
+}
+
+
+function onDecoratingClick(event) { // 일반 토핑 및 색상 변경 전용
+    // 🚨 이 함수는 onMouseDown에서 호출되도록 변경되었으며, 직접 이벤트 리스너는 제거됨
+    if (gameMode !== 'DECORATING' || selectedToppingType === 'piping') return;
     
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -633,47 +926,73 @@ function onDecoratingClick(event) {
     
     if (intersects.length > 0) {
         if (selectedCreamColor) {
-            // 생크림 색상 변경 시 재질 업데이트
             creamTop.material.color.set(selectedCreamColor);
             creamTop.material.needsUpdate = true;
             
         } else if (selectedToppingType) {
-            // 토핑 추가
             const point = intersects[0].point;
             const distance = new THREE.Vector2(point.x, point.z).length();
-            const maxRadius = 1.3;
             
-            if (distance <= maxRadius) {
+            if (distance <= MAX_TOPPING_RADIUS) { 
                 let newTopping;
 
                 if (selectedToppingType === 'drizzle') {
-                    if (customToppingGroup.children.some(c => c.name === 'drizzle')) return;
+                    if (customToppingGroup.children.some(c => c.name === 'drizzle')) return; 
                     newTopping = new THREE.Mesh(new THREE.TorusKnotGeometry(1.3, 0.08, 64, 8, 2, 3), chocolateMaterial);
                     newTopping.position.set(0, -0.15, 0); 
                     newTopping.scale.set(1.0, 0.5, 1.0);
                     newTopping.rotation.x = Math.PI / 2;
                     newTopping.name = 'drizzle';
                 } else if (selectedToppingType === 'strawberry') {
+                    const isTooClose = customToppingGroup.children.some(c => 
+                        c.name !== 'drizzle' && c.position.distanceTo(new THREE.Vector3(point.x, 0.05, point.z)) < 0.4
+                    );
+                    if (isTooClose) {
+                        messageElement.innerHTML = `<span style="color: red;">너무 가깝습니다!</span> 간격을 두고 배치하세요.`;
+                        messageElement.style.display = 'block';
+                        setTimeout(() => messageElement.style.display = 'none', 1000);
+                        return;
+                    }
+                    
                     newTopping = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), strawberryMaterial);
                     newTopping.position.set(point.x, 0.05, point.z);
+                    score += 5; 
                 } else if (selectedToppingType === 'sprinkle') {
                     const color = sprinkleColors[Math.floor(Math.random() * sprinkleColors.length)];
                     const material = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
                     newTopping = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8), material);
                     newTopping.position.set(point.x, 0.05, point.z);
                     newTopping.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                    score += 0.5;
                 } else if (selectedToppingType === 'cherry') {
+                    if (distance > 0.5) {
+                         messageElement.innerHTML = `<span style="color: red;">체리는 중앙에!</span> 중앙 50cm 반경 내에 배치하세요.`;
+                         messageElement.style.display = 'block';
+                         setTimeout(() => messageElement.style.display = 'none', 1000);
+                         return;
+                    }
                     newTopping = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), new THREE.MeshPhongMaterial({ color: 0xcc0000, shininess: 50 }));
                     newTopping.position.set(point.x, 0.05, point.z);
                     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8), new THREE.MeshBasicMaterial({ color: 0x442200 }));
                     stem.position.y = 0.1;
                     newTopping.add(stem);
+                    score += 10; 
                 }
                 
                 if (newTopping) {
                     newTopping.castShadow = true;
                     customToppingGroup.add(newTopping);
+                    toppingsCount++;
+                    updateScoreDisplay(); 
+                    
+                    if (selectedToppingType !== 'drizzle') {
+                        activeSplashMeshes.push({ mesh: newTopping, scale: 1.0, timer: 0, duration: 30 });
+                    }
                 }
+            } else {
+                 messageElement.innerHTML = `<span style="color: red;">케이크 밖에는 배치할 수 없습니다!</span>`;
+                 messageElement.style.display = 'block';
+                 setTimeout(() => messageElement.style.display = 'none', 1000);
             }
         }
     }
@@ -710,6 +1029,26 @@ function animate() {
     }
     // 케이크 그룹 전체는 항상 천천히 회전
     cakeGroup.rotation.y += BASE_ROTATION_SPEED;
+
+    // 🚨 스플래시 이벤트 애니메이션 처리
+    const meshesToRemove = [];
+    activeSplashMeshes.forEach(item => {
+        item.timer++;
+        const progress = item.timer / item.duration;
+        
+        const targetScale = 1.0 + Math.sin(progress * Math.PI) * 0.2; 
+        item.mesh.scale.set(targetScale, targetScale, targetScale);
+        
+        if (item.timer >= item.duration) {
+            item.mesh.scale.set(1.0, 1.0, 1.0); 
+            meshesToRemove.push(item);
+        }
+    });
+
+    meshesToRemove.forEach(item => {
+        const index = activeSplashMeshes.indexOf(item);
+        if (index > -1) activeSplashMeshes.splice(index, 1);
+    });
 
     // 촛불 깜빡임 효과
     if (isCandleOn) {
