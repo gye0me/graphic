@@ -22,6 +22,18 @@ const SETTLED_Y = 0.05;     // The Y position where toppings rest (relative to c
 const activePhysicsMeshes = []; // List of meshes currently undergoing physics simulation
 // ---------------------------------------------------
 
+// --- Rhythm Game Variables ---
+let rhythmActive = false;
+let rhythmTargets = []; // Sequence of required keys
+let targetIndex = 0;
+let rhythmScore = 0;
+const RHYTHM_MAX_SCORE = 100;
+const RHYTHM_DURATION = 5000; // 5 seconds
+let rhythmStartTime = 0;
+const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+const ARROW_SYMBOLS = { 'ArrowUp': '↑', 'ArrowDown': '↓', 'ArrowLeft': '←', 'ArrowRight': '→' };
+// -----------------------------
+
 let mixingQuality = 0; // 0 to 100
 const NUM_SEGMENTS = 8; // For topping distribution score calculation
 // --- 모드 변수 ---
@@ -490,10 +502,44 @@ function advanceMakingStep() {
 
     if (makingStep === 1) { 
         mixingContent.visible = true;
-        messageElement.innerHTML = `**믹싱!** 계란, 밀가루, 설탕을 넣고 있습니다.<br> <span style="color: #f8bbd0;">[Spacebar]</span>로 반죽을 완료하세요.`;
+        
+        // --- START RHYTHM MIXER GAME ---
+        const rhythmDisplay = document.getElementById('rhythm-display');
+        document.getElementById('rhythm-mixer').style.display = 'flex';
+        messageElement.style.display = 'none';
+
+        rhythmTargets = [];
+        targetIndex = 0;
+        rhythmScore = 0;
+        rhythmStartTime = Date.now();
+        rhythmActive = true;
+        
+        // Generate a sequence of 15 random arrows
+        for(let i = 0; i < 15; i++) {
+            rhythmTargets.push(ARROW_KEYS[Math.floor(Math.random() * ARROW_KEYS.length)]);
+        }
+
+        rhythmDisplay.innerHTML = rhythmTargets.map(key => `<span class="target-arrow" style="opacity: 0.3;">${ARROW_SYMBOLS[key]}</span>`).join('');
+        
+        // Highlight the first target
+        if (rhythmDisplay.firstChild) {
+            rhythmDisplay.firstChild.style.opacity = 1.0;
+            rhythmDisplay.firstChild.style.color = '#d81b60'; // Set target color
+        }
+        
     } else if (makingStep === 2) { 
+        // 🚨 믹싱 퀄리티 최종 계산 및 시각화 (Rhythm Game Result)
+        
+        // Normalize score to 0-100% based on max possible score (15 targets * 100/15)
+        const targetsCount = rhythmTargets.length;
+        const maxPossibleScore = targetsCount * (100 / targetsCount);
+        const qualityRatio = Math.min(1, rhythmScore / maxPossibleScore);
+        
+        // Finalize mixing quality score
+        mixingQuality = qualityRatio * 100;
+        
+        document.getElementById('rhythm-mixer').style.display = 'none';
         // 🚨 믹싱 퀄리티 최종 계산 및 시각화 (MAKING Quality Mini-game)
-        const qualityRatio = Math.min(100, mixingQuality) / 100;
         
         // 퀄리티에 따라 반죽 색상 미묘하게 변경 (1.0 = 황금색, 0.0 = 연한 색)
         const perfectColor = new THREE.Color(0xf4d03f);
@@ -512,10 +558,12 @@ function advanceMakingStep() {
         } else if (qualityRatio >= 0.5) {
             qualityMessage = "✅ **좋은 반죽!** 무난하게 믹싱되었습니다. (+" + mixingScore + "점)";
         } else {
-            qualityMessage = "❌ **믹싱 부족!** 조금 더 섞어야 했어요. (+" + mixingScore + "점)";
+            qualityMessage = "❌ **믹싱 부족!** 리듬감이 부족했어요. (+" + mixingScore + "점)";
         }
 
         messageElement.innerHTML = `**반죽 완료!** ${qualityMessage}<br> <span style="color: #f8bbd0;">[Spacebar]</span>로 굽기를 시작하세요.`;
+        messageElement.style.display = 'block';
+
     } else if (makingStep === 3) { 
         bowlGroup.visible = false;
         cakeGroup.visible = true;
@@ -542,6 +590,58 @@ window.addEventListener('keydown', (e) => {
     // 🚨 k 변수를 그대로 사용하되, Spacebar는 e.code로도 체크하여 안정성을 높입니다.
     const k = e.key.toLowerCase(); 
     const isSpace = (k === ' ' || e.code === 'Space');
+    
+    // --- Rhythm Game Input Handling (MAKING Step 1) ---
+    if (rhythmActive) {
+        e.preventDefault();
+        
+        if (targetIndex >= rhythmTargets.length) return; // Should be caught by completion check, but safe guard
+
+        const requiredKey = rhythmTargets[targetIndex];
+        const displayElement = document.getElementById('rhythm-display');
+        const currentTargetElement = displayElement.children[targetIndex];
+        
+        // Only consume key if it's an Arrow Key
+        if (!ARROW_KEYS.includes(e.code)) {
+            return; 
+        }
+
+        // Check if the pressed key is the required key
+        if (e.code === requiredKey) {
+            rhythmScore += 100 / rhythmTargets.length; // Max score 100
+            
+            // Mark correct hit visually
+            if (currentTargetElement) {
+                currentTargetElement.classList.add('correct');
+            }
+            
+        } else {
+            // Wrong key pressed
+            if (currentTargetElement) {
+                currentTargetElement.classList.add('wrong');
+                // Apply penalty only if wrong key is pressed when a target is active
+                rhythmScore -= 50 / rhythmTargets.length; // Penalty is half of gain
+                rhythmScore = Math.max(0, rhythmScore); 
+            }
+        }
+        
+        // In rhythm game, every Arrow key press (correct or wrong) advances to the next target
+        targetIndex++;
+        
+        // Highlight next target
+        const nextTargetElement = displayElement.children[targetIndex];
+        if (nextTargetElement) {
+            nextTargetElement.style.opacity = 1.0;
+            nextTargetElement.style.color = '#d81b60';
+        }
+
+        // Check for completion
+        if (targetIndex >= rhythmTargets.length) {
+            rhythmActive = false; // End game immediately if sequence is completed
+            advanceMakingStep();
+        }
+        return; // Consume the key event if rhythm game is active
+    }
     
     // 제작 모드 (MAKING) 컨트롤
     if (gameMode === 'MAKING' && isSpace) { 
@@ -845,12 +945,21 @@ window.addEventListener('resize', () => {
 
 // 계층적 애니메이션 루프
 function animate() {
-    // 믹싱 모션 
+    // 믹싱 모션 및 리듬 게임 루프
     if (gameMode === 'MAKING' && makingStep === 1) {
         mixingContent.rotation.y += 0.05;
-        // 🚨 믹싱 퀄리티 미니게임: 믹싱 속도(시간)에 따라 퀄리티 점수 누적 (100점 만점)
-        if (mixingQuality < 100) {
-            mixingQuality += 0.5; // 프레임당 0.5점 획득 (총 200프레임 = 약 3.3초 이상 믹싱 권장)
+
+        // 🚨 리듬 게임 타임아웃 체크
+        if (rhythmActive && Date.now() > rhythmStartTime + RHYTHM_DURATION) {
+            rhythmActive = false;
+            // Calculate final score before advancing
+            const targetsCount = rhythmTargets.length;
+            const maxPossibleScore = targetsCount * (100 / targetsCount);
+            mixingQuality = rhythmScore / maxPossibleScore * 100;
+            
+            messageElement.innerHTML = `**시간 초과!** 리듬 믹싱이 완료되었습니다.<br> <span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽을 완료하세요.`;
+            document.getElementById('rhythm-mixer').style.display = 'none';
+            messageElement.style.display = 'block';
         }
     }
 
@@ -885,7 +994,7 @@ function animate() {
 
     // Remove settled meshes from the active physics list (to save performance)
     meshesToSettle.forEach(mesh => {
-        const index = activePhysicsMeshes.indexOf(item);
+        const index = activePhysicsMeshes.indexOf(mesh);
         if (index > -1) {
             activePhysicsMeshes.splice(index, 1);
         }
