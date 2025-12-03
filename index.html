@@ -19,6 +19,9 @@
     
     <div id="rhythm-mixer">
         <div style="color: #333; font-size: 1.1em; font-family: 'Gaegu', cursive;">믹싱! 화살표 키를 누르세요! (5초)</div>
+        <div id="rhythm-progress-bar-container" style="width: 80%; height: 10px; background-color: #f8bbd0; border-radius: 5px; overflow: hidden;">
+            <div id="rhythm-progress-bar" style="height: 100%; width: 100%; background-color: #d81b60;"></div>
+        </div>
         <div id="rhythm-display"></div>
     </div>
     
@@ -29,6 +32,10 @@
 
     <div id="score-overlay">
         SCORE: <span id="score-value">0</span>
+        <div style="font-size: 0.6em; color: #d81b60; margin-top: 5px;">완성도</div>
+        <div id="completeness-bar-container" style="width: 100px; height: 10px; background-color: #f8bbd0; border-radius: 5px; overflow: hidden; margin-top: 2px;">
+            <div id="completeness-bar" style="height: 100%; width: 0%; background-color: #d81b60;"></div>
+        </div>
     </div>
 
     <div id="palette-container">
@@ -64,7 +71,7 @@
 
 <script src="./cake_app.js"></script>
 <script>
-renderer.setAnimationLoop(animate);
+// renderer.setAnimationLoop(animate); 🚨 REMOVED: 게임 시작 느린 점 개선을 위해 초기 실행 제거
 
 
 // 초기 모드 설정 (타이틀 화면에서 시작)
@@ -76,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('start-button').addEventListener('click', () => {
         document.getElementById('title-screen').style.display = 'none'; // 타이틀 화면 숨기기
         renderer.domElement.style.display = 'block'; // 캔버스 보이기
+        renderer.setAnimationLoop(animate); // 🚨 ADDED: 게임 시작 버튼 클릭 시 애니메이션 루프 시작
         setGameMode('MAKING'); // 게임 시작 플로우 실행
     });
 });

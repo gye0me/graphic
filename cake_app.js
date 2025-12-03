@@ -13,7 +13,7 @@ const BASE_ROTATION_SPEED = 0.001;
 const TOPPING_ROTATION_SPEED = 0.015;
 
 const scene = new THREE.Scene(); 
-scene.background = new THREE.Color(0xf8e8f0); // 핑크빛 주방처럼 배경색 변경
+scene.background = new THREE.Color(0xf8e8f0); // 🚨 MODIFIED: 배경색을 핑크빛 주방처럼 유지 (배경 이미지와 블렌딩 목적)
 
 // --- Physics Variables for Topping Drop Simulation ---
 const GRAVITY = -0.01;      // Downward acceleration (per frame)
@@ -45,6 +45,7 @@ let selectedCreamColor = 0xffffff;
 // 🚨 점수 및 미니게임 변수 추가
 let score = 0;
 let toppingsCount = 0;
+const MAX_COMPLETENESS_COUNT = 25; // 🚨 ADDED: 완성도 바 최대 토핑 개수 정의
 let pipingActive = false;
 let lastPipingPoint = null;
 const MAX_TOPPING_RADIUS = 1.4; 
@@ -101,25 +102,45 @@ scene.add(frontLight);
 const lightColors = [0xffffff, 0xf183f3, 0x3de6c5, 0xffa500]; 
 let currentLightColorIndex = 0;
 
-// --- 3. 주방 환경 설정 (기존 코드 유지) ---
+// 🚨 ADDED/MODIFIED: 배경 이미지 Texture Loading 및 투명 평면 적용
+const loader = new THREE.TextureLoader();
+loader.load('./kitchen.jpg', function(texture) {
+    // 1. 큰 평면 생성
+    const bgGeometry = new THREE.PlaneGeometry(20, 10);
+    // 2. 텍스처를 맵핑하고 투명도를 0.5로 설정하여 배경색과 블렌딩 (덜 집중되게 함)
+    const bgMaterial = new THREE.MeshBasicMaterial({ 
+        map: texture, 
+        transparent: true, 
+        opacity: 0.5, // 🚨 투명도 적용
+        side: THREE.DoubleSide
+    });
+    const backgroundMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+    
+    // 3. 케이크 뒤쪽에 배치
+    backgroundMesh.position.set(0, 4, -4.9);
+    scene.add(backgroundMesh);
+}, undefined, function(err) {
+    console.error('An error happened loading the kitchen background texture. Falling back to color.', err);
+});
+
+
+// --- 3. 주방 환경 설정 (카운터/받침 복원) --- 
 const kitchenGroup = new THREE.Group();
 scene.add(kitchenGroup);
 
-const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xffe0e0 }); // 연핑크 벽
-const wall = new THREE.Mesh(new THREE.PlaneGeometry(20, 10), wallMaterial);
-wall.rotation.y = Math.PI;
-wall.position.set(0, 5, -5);
-wall.receiveShadow = true;
-kitchenGroup.add(wall);
-
+// 🚨 ADDED: 카운터 재질 및 메쉬 복원
 const counterMaterial = new THREE.MeshLambertMaterial({ color: 0xffa07a }); // 연한 오렌지 핑크 카운터
 const counter = new THREE.Mesh(new THREE.BoxGeometry(5, 1, 5), counterMaterial);
 counter.position.set(0, -0.5, 0);
 counter.receiveShadow = true;
 kitchenGroup.add(counter);
 
-const gridHelper = new THREE.GridHelper( 5, 5, 0xffcccc, 0xffe0e0 ); // 핑크 그리드
-scene.add( gridHelper );
+// 🚨 ADDED: 바닥 복원
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshLambertMaterial({ color: 0xfde2e2, side: THREE.DoubleSide })); // 연핑크 바닥
+floor.rotation.x = -Math.PI / 2; 
+floor.position.y = -1; 
+floor.receiveShadow = true;
+scene.add(floor);
 
 
 // --- 4. 케이크 제작/모델링 요소 ---
@@ -154,7 +175,12 @@ bowlGroup.position.y = 1.0;
 scene.add(bowlGroup);
 const bowl = new THREE.Mesh(
     new THREE.CylinderGeometry(2.0, 1.5, 1.0, 32, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.3, side: THREE.BackSide })
+    new THREE.MeshStandardMaterial({ 
+        color: 0xaaaaaa, // 🚨 MODIFIED: 색상 약간 어둡게 조정
+        transparent: true, 
+        opacity: 0.8, // 🚨 MODIFIED: 오파시티 증가 (0.3 -> 0.8)
+        side: THREE.BackSide 
+    })
 );
 bowl.position.y = 0.5;
 bowlGroup.add(bowl);
@@ -285,14 +311,6 @@ for (let i = 0; i < 50; i++) {
 themeMeshes.children.forEach(m => m.visible = false); 
 
 
-// 바닥
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshLambertMaterial({ color: 0xfde2e2, side: THREE.DoubleSide })); // 연핑크 바닥
-floor.rotation.x = -Math.PI / 2; 
-floor.position.y = -1; 
-floor.receiveShadow = true;
-scene.add(floor);
-
-
 // --- 5. 케이크 종류 정의 및 업데이트 함수 (기존 코드 유지) ---
 const CAKE_THEMES = [
     { body: 0x4a2c2a, cream: 0x7b3f00, topping: 'chocolate' }, 
@@ -353,6 +371,15 @@ function updateScoreDisplay() {
     const scoreElement = document.getElementById('score-value');
     if (scoreElement) {
         scoreElement.textContent = finalScore;
+    }
+    
+    // 🚨 MODIFIED/ADDED: Completeness Bar Update (장식 완성도 바 업데이트)
+    const completenessRatio = Math.min(1, toppingsCount / MAX_COMPLETENESS_COUNT);
+    const widthPercent = completenessRatio * 100;
+    
+    const completenessBar = document.getElementById('completeness-bar');
+    if (completenessBar) {
+        completenessBar.style.width = widthPercent + '%';
     }
 }
 
@@ -508,6 +535,12 @@ function advanceMakingStep() {
         document.getElementById('rhythm-mixer').style.display = 'flex';
         messageElement.style.display = 'none';
 
+        // 🚨 ADDED: 리듬 게임 시간 경과 바 초기화
+        const rhythmProgressBar = document.getElementById('rhythm-progress-bar');
+        if (rhythmProgressBar) {
+            rhythmProgressBar.style.width = '100%';
+        }
+
         rhythmTargets = [];
         targetIndex = 0;
         rhythmScore = 0;
@@ -587,7 +620,6 @@ function advanceMakingStep() {
 
 
 window.addEventListener('keydown', (e) => {
-    // 🚨 k 변수를 그대로 사용하되, Spacebar는 e.code로도 체크하여 안정성을 높입니다.
     const k = e.key.toLowerCase(); 
     const isSpace = (k === ' ' || e.code === 'Space');
     
@@ -595,7 +627,7 @@ window.addEventListener('keydown', (e) => {
     if (rhythmActive) {
         e.preventDefault();
         
-        if (targetIndex >= rhythmTargets.length) return; // Should be caught by completion check, but safe guard
+        if (targetIndex >= rhythmTargets.length) return; 
 
         const requiredKey = rhythmTargets[targetIndex];
         const displayElement = document.getElementById('rhythm-display');
@@ -608,7 +640,7 @@ window.addEventListener('keydown', (e) => {
 
         // Check if the pressed key is the required key
         if (e.code === requiredKey) {
-            rhythmScore += 100 / rhythmTargets.length; // Max score 100
+            rhythmScore += 100 / rhythmTargets.length; 
             
             // Mark correct hit visually
             if (currentTargetElement) {
@@ -620,7 +652,7 @@ window.addEventListener('keydown', (e) => {
             if (currentTargetElement) {
                 currentTargetElement.classList.add('wrong');
                 // Apply penalty only if wrong key is pressed when a target is active
-                rhythmScore -= 50 / rhythmTargets.length; // Penalty is half of gain
+                rhythmScore -= 50 / rhythmTargets.length; 
                 rhythmScore = Math.max(0, rhythmScore); 
             }
         }
@@ -637,22 +669,66 @@ window.addEventListener('keydown', (e) => {
 
         // Check for completion
         if (targetIndex >= rhythmTargets.length) {
-            rhythmActive = false; // End game immediately if sequence is completed
+            rhythmActive = false; 
             advanceMakingStep();
         }
-        return; // Consume the key event if rhythm game is active
+        return; 
+    }
+
+    // 🚨 MODIFIED: Camera/Movement Controls (Shared by VIEWING and DECORATING)
+    const isSharedControlMode = (gameMode === 'VIEWING' || gameMode === 'DECORATING');
+
+    if (isSharedControlMode) {
+        // Arrow Key Movement (Cake Group)
+        switch (e.key) {
+            case 'ArrowUp':
+                cakeGroup.position.y += moveSpeed;
+                break;
+            case 'ArrowDown':
+                cakeGroup.position.y -= moveSpeed;
+                break;
+            case 'ArrowLeft':
+                cakeGroup.position.x -= moveSpeed;
+                break;
+            case 'ArrowRight':
+                cakeGroup.position.x += moveSpeed;
+                break;
+        }
+
+        if (e.key.startsWith('Arrow')) {
+            e.preventDefault();
+        }
+
+        // Camera Switch (P/O)
+        if (k === 'p') currentCamera = perspectiveCamera; 
+        else if (k === 'o') currentCamera = orthographicCamera; 
+        currentCamera.updateProjectionMatrix();
+
+        // Preset Camera Positions (1/2)
+        if (k === '1' || k === '2') {
+            const targetPosition = new THREE.Vector3();
+            cakeGroup.getWorldPosition(targetPosition); 
+            
+            if (k === '1') { 
+                perspectiveCamera.position.set(targetPosition.x + 4, targetPosition.y + 1, targetPosition.z);
+            } else if (k === '2') { 
+                perspectiveCamera.position.set(targetPosition.x, targetPosition.y + 3, targetPosition.z + 5);
+            }
+
+            currentCamera = perspectiveCamera;
+            currentCamera.lookAt(targetPosition); 
+            currentCamera.updateProjectionMatrix();
+        }
     }
     
     // 제작 모드 (MAKING) 컨트롤
     if (gameMode === 'MAKING' && isSpace) { 
         if (makingStep === 3) { 
-            // 🚨 미니게임 제거: Step 3에서 Spacebar를 누르면 바로 장식 모드로 진입 (Step 5)
-            makingStep = 4; // advanceMakingStep 내의 로직을 위해 4로 설정 (이후 5로 점프)
+            makingStep = 4; 
             advanceMakingStep();
             e.preventDefault(); 
             return;
         } else if (makingStep < 3) {
-            // Step 0, 1, 2 는 순서대로 진행
             advanceMakingStep();
             e.preventDefault(); 
             return;
@@ -663,11 +739,11 @@ window.addEventListener('keydown', (e) => {
     const isEnterOrSpace = (k === 'enter' || isSpace);
     if (gameMode === 'DECORATING' && isEnterOrSpace) {
         setGameMode('VIEWING');
-        e.preventDefault(); // Spacebar/Enter 기본 동작 방지
+        e.preventDefault(); 
         return;
     }
     
-    // 3. 관람 모드 (VIEWING) 컨트롤
+    // 3. 관람 모드 (VIEWING) 컨트롤 (Only mode-specific controls remain here)
     if (gameMode !== 'VIEWING') return;
 
     if (k === 'k') {
@@ -691,26 +767,6 @@ window.addEventListener('keydown', (e) => {
         spotLight.intensity = (currentLightColorIndex === 0) ? 2.0 : 1.5;
     }
 
-    if (k === '1' || k === '2') {
-        const targetPosition = new THREE.Vector3();
-        cakeGroup.getWorldPosition(targetPosition); 
-        
-        if (k === '1') { 
-            perspectiveCamera.position.set(targetPosition.x + 4, targetPosition.y + 1, targetPosition.z);
-        } else if (k === '2') { 
-            perspectiveCamera.position.set(targetPosition.x, targetPosition.y + 3, targetPosition.z + 5);
-        }
-
-        currentCamera = perspectiveCamera;
-        currentCamera.lookAt(targetPosition); 
-        currentCamera.updateProjectionMatrix();
-        return;
-    }
-
-    if (k === 'p') currentCamera = perspectiveCamera; 
-    else if (k === 'o') currentCamera = orthographicCamera; 
-    currentCamera.updateProjectionMatrix();
-
     if (isSpace) {
         isToppingRotating = !isToppingRotating;
         e.preventDefault();
@@ -721,8 +777,6 @@ window.addEventListener('keydown', (e) => {
         candleLight.visible = isCandleOn;
         flame.visible = isCandleOn;
     }
-
-    if (e.key.startsWith('Arrow')) e.preventDefault();
 });
 
 
@@ -889,11 +943,14 @@ function onDecoratingClick(event) { // 일반 토핑 및 색상 변경 전용
                     const material = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
                     newTopping = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8), material);
                     newTopping.position.set(point.x, START_Y, point.z); 
-                    newTopping.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                    // 🚨 MODIFIED: 스프링클이 클릭 지점에 정확히 놓이도록 X/Z 틸트 제거. Y축 스핀만 허용
+                    const randomSpinY = Math.random() * Math.PI * 2; 
+                    newTopping.rotation.set(0, randomSpinY, 0); 
                     score += 0.5;
                 } else if (selectedToppingType === 'cherry') {
-                    if (distance > 0.5) {
-                         messageElement.innerHTML = `<span style="color: red;">체리는 중앙에!</span> 중앙 50cm 반경 내에 배치하세요.`;
+                    // 🚨 MODIFIED: 체리 위치 제약 완화 (0.5 -> 1.0)
+                    if (distance > 1.0) {
+                         messageElement.innerHTML = `<span style="color: red;">체리는 중앙에!</span> 중앙 1m 반경 내에 배치하세요.`;
                          messageElement.style.display = 'block';
                          setTimeout(() => messageElement.style.display = 'none', 1000);
                          return;
@@ -949,17 +1006,35 @@ function animate() {
     if (gameMode === 'MAKING' && makingStep === 1) {
         mixingContent.rotation.y += 0.05;
 
-        // 🚨 리듬 게임 타임아웃 체크
-        if (rhythmActive && Date.now() > rhythmStartTime + RHYTHM_DURATION) {
-            rhythmActive = false;
-            // Calculate final score before advancing
-            const targetsCount = rhythmTargets.length;
-            const maxPossibleScore = targetsCount * (100 / targetsCount);
-            mixingQuality = rhythmScore / maxPossibleScore * 100;
+        // 🚨 ADDED: 리듬 게임 시간 경과 바 업데이트 (Rhythm Game Progress Bar update)
+        const rhythmProgressBar = document.getElementById('rhythm-progress-bar');
+
+        if (rhythmActive) {
+            const elapsedTime = Date.now() - rhythmStartTime;
+            const progress = Math.max(0, RHYTHM_DURATION - elapsedTime) / RHYTHM_DURATION;
+            const widthPercent = progress * 100;
             
-            messageElement.innerHTML = `**시간 초과!** 리듬 믹싱이 완료되었습니다.<br> <span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽을 완료하세요.`;
-            document.getElementById('rhythm-mixer').style.display = 'none';
-            messageElement.style.display = 'block';
+            if (rhythmProgressBar) {
+                rhythmProgressBar.style.width = widthPercent + '%'; // 남은 시간만큼 바 줄이기
+            }
+
+            // 🚨 리듬 게임 타임아웃 체크
+            if (Date.now() > rhythmStartTime + RHYTHM_DURATION) {
+                rhythmActive = false;
+                // Calculate final score before advancing
+                const targetsCount = rhythmTargets.length;
+                const maxPossibleScore = targetsCount * (100 / targetsCount);
+                mixingQuality = rhythmScore / maxPossibleScore * 100;
+                
+                messageElement.innerHTML = `**시간 초과!** 리듬 믹싱이 완료되었습니다.<br> <span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽을 완료하세요.`;
+                document.getElementById('rhythm-mixer').style.display = 'none';
+                messageElement.style.display = 'block';
+            }
+        } else {
+            // 게임이 비활성 상태일 때 바를 숨김 (혹시 모를 잔상을 위해)
+            if (rhythmProgressBar && rhythmProgressBar.style.width !== '0%') {
+                rhythmProgressBar.style.width = '0%';
+            }
         }
     }
 
@@ -1000,7 +1075,7 @@ function animate() {
         }
     });
 
-    // 🚨 스플래시 이벤트 애니메이션 처리
+    // 🚨 ADDED: 스플래쉬 이벤트 애니메이션 처리 (유지)
     const meshesToRemove = [];
     activeSplashMeshes.forEach(item => {
         item.timer++;

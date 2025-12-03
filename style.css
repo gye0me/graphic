@@ -17,13 +17,13 @@
     background-image: url('rabbit.jpg'); /* 이미지 파일명 rabbit.jpg로 변경 */
     background-repeat: no-repeat;
     background-position: center 20%; /* 이미지 위치 조정 */
-    background-size: 300px auto; /* 이미지 크기 조정 */
+    background-size: 500px auto; /* rabbit.jpg 사이즈 확대: 300px -> 500px */
 }
 #title-screen h1 {
     font-size: 5em;
     color: #d81b60; /* 진한 핑크 */
     margin-bottom: 20px;
-    margin-top: 250px; /* 캐릭터 아래로 제목 이동 */
+    margin-top: 550px; /* 확대된 이미지에 맞춰 제목 위치 조정: 250px -> 550px */
     text-shadow: 0 0 15px #f8bbd0; /* 밝은 핑크빛으로 강조 */
 }
 #title-screen button {
@@ -53,28 +53,35 @@ body {
 }
 canvas { display: block; }
 
-/* 관람 모드 컨트롤 UI */
+/* 🚨 MODIFIED: 관람 모드 컨트롤 UI (파스텔 테마 적용) */
 .controls {
     position: absolute;
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
+    background: #fff; /* 흰색 배경 */
+    color: #333; /* 어두운 글씨 */
     padding: 15px;
-    border-radius: 8px;
-    font-size: 14px;
+    border-radius: 15px; /* 둥근 모서리 */
+    font-size: 16px; 
     z-index: 100;
     user-select: none;
     text-align: left;
-    border: 2px solid #f8bbd0; /* 연핑크 강조 테두리 */
-    box-shadow: 0 0 10px rgba(248, 187, 208, 0.7); /* 빛나는 효과 */
+    border: 4px solid #f8bbd0; /* 연핑크 강조 테두리 */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); 
 }
-.controls h3 { margin: 0 0 5px 0; border-bottom: 1px solid #f8bbd0; padding-bottom: 5px; }
+.controls h3 { 
+    margin: 0 0 5px 0; 
+    border-bottom: 2px solid #f8bbd0; /* 핑크색 구분선 */
+    padding-bottom: 5px; 
+    color: #d81b60; /* 진한 핑크 제목 */
+}
 .controls p { margin: 3px 0; }
-.highlight { color: #f8bbd0; font-weight: bold; } /* 강조 색상 연핑크 */
+.highlight { color: #d81b60; font-weight: bold; } /* 강조 색상 진한 핑크 */
+.controls hr { border-color: #f8bbd0; margin: 5px 0; }
 
-/* 팔레트 컨테이너 */
+
+/* 🚨 MODIFIED: 팔레트 컨테이너 (파스텔 테마 유지) */
 #palette-container {
     position: absolute;
     bottom: 10px;
@@ -88,6 +95,11 @@ canvas { display: block; }
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), 0 0 10px #f8bbd0; /* 연핑크 번짐 */
     text-align: center;
     border: 3px solid #f8bbd0; /* 연핑크 선 */
+    font-size: 1.1em; 
+}
+#palette-container > div:first-child {
+    color: #d81b60; /* 진한 핑크 타이틀 */
+    font-weight: bold;
 }
 #topping-palette, #cream-palette {
     display: flex;
@@ -104,7 +116,7 @@ canvas { display: block; }
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 14px; 
     font-weight: bold;
     color: #333;
     transition: border-color 0.2s, transform 0.1s;
@@ -116,64 +128,50 @@ canvas { display: block; }
     box-shadow: 0 0 5px #d81b60;
 }
 
-/* 메시지 창 */
+/* 🚨 MODIFIED: 메시지 창 */
 #message {
     position: absolute;
-    top: 100px; 
+    top: 200px; /* 점수 오버레이를 가리지 않도록 위치 조정 */
     right: 10px; 
     left: auto; 
     transform: none; 
-    padding: 15px 25px; /* 패딩 감소 */
+    padding: 15px 25px; 
     background: rgba(0, 0, 0, 0.9);
     color: white;
     border-radius: 15px;
-    font-size: 18px; /* 폰트 크기 감소 */
+    font-size: 20px; 
     z-index: 101;
     display: block; 
     text-align: center;
     line-height: 1.6;
     border: 3px solid #f8bbd0; /* 연핑크 테두리 */
-    box-shadow: 0 0 20px rgba(248, 187, 208, 0.7); /* 연핑크 번짐 효과 */
+    box-shadow: 0 0 20px rgba(248, 187, 208, 0.7); 
 }
-/* 🚨 실시간 점수 오버레이 추가 */
+/* 🚨 MODIFIED: 실시간 점수 오버레이 (파스텔 테마 적용) */
 #score-overlay {
     position: absolute;
     top: 10px;
     right: 10px;
     padding: 10px 20px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    font-size: 30px;
-    border-radius: 8px;
-    border: 3px solid #f8bbd0; /* 연핑크 선 */
+    background: #fff; /* 흰색 배경 */
+    color: #333; /* 어두운 글씨 */
+    font-size: 32px; 
+    border-radius: 15px;
+    border: 4px solid #3de6c5; /* 민트색 강조 테두리 */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); 
     z-index: 100;
     display: none;
     font-family: 'Gaegu', cursive;
+    text-align: center;
 }
 #score-value {
     color: #d81b60; /* 진한 핑크 */
     font-weight: bold;
 }
-
-/* 관람 모드 컨트롤 UI */
-.controls {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 14px;
-    z-index: 100;
-    user-select: none;
-    text-align: left;
-    border: 2px solid #f8bbd0; /* 연핑크 강조 테두리 */
-    box-shadow: 0 0 10px rgba(248, 187, 208, 0.7); /* 빛나는 효과 */
+#completeness-bar {
+    background-color: #d81b60 !important; /* 완성도 바를 진한 핑크로 변경 */
 }
-.controls h3 { margin: 0 0 5px 0; border-bottom: 1px solid #f8bbd0; padding-bottom: 5px; }
-.highlight { color: #f8bbd0; font-weight: bold; } /* 강조 색상 연핑크 */
+
 
 /* 크림 바르기 미니게임 프로그레스 바 스타일 (제거되었지만 CSS는 혹시 몰라 유지) */
 #spreading-progress-bar {
