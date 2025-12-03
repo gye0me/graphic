@@ -79,6 +79,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 캔버스가 초기에는 숨겨지도록 합니다.
     renderer.domElement.style.display = 'none';
     
+    // 🚨 MODIFIED: Ensure modal is hidden on page load
+    const transitionModal = document.getElementById('transition-modal');
+    if (transitionModal) {
+        transitionModal.style.display = 'none';
+    }
+
     // 시작 버튼 리스너 설정
     document.getElementById('start-button').addEventListener('click', () => {
         document.getElementById('title-screen').style.display = 'none'; // 타이틀 화면 숨기기
@@ -86,8 +92,30 @@ document.addEventListener('DOMContentLoaded', () => {
         renderer.setAnimationLoop(animate); // 🚨 ADDED: 게임 시작 버튼 클릭 시 애니메이션 루프 시작
         setGameMode('MAKING'); // 게임 시작 플로우 실행
     });
+
+    // 🚨 ADDED: Transition Modal Button Listener
+    const startDecoratingButton = document.getElementById('start-decorating-button');
+    if (startDecoratingButton) {
+        startDecoratingButton.addEventListener('click', () => {
+            document.getElementById('transition-modal').style.display = 'none';
+            // Manually set the step to 4 (Baking Complete state) and advance to 5 (DECORATING)
+            if (typeof makingStep !== 'undefined' && makingStep === 4) {
+                 advanceMakingStep(); 
+            }
+        });
+    }
 });
 </script>
+
+<div id="transition-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 300; display: flex; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 40px; border-radius: 15px; text-align: center; border: 5px solid #d81b60; box-shadow: 0 0 30px #f8bbd0; font-family: 'Gaegu', cursive;">
+        <h2 style="color: #d81b60; font-size: 2em; margin-bottom: 20px;">다음 단계로 넘어갈까요?</h2>
+        <p style="color: #333; margin-bottom: 30px; font-size: 1.2em;">케이크가 맛있게 구워졌습니다! 이제 생일 케이크를 장식할 시간이에요.</p>
+        <button id="start-decorating-button" style="padding: 10px 25px; font-size: 1.5em; font-family: 'Gaegu', cursive; border: 3px solid #3de6c5; background-color: #fce4ec; color: #d81b60; cursor: pointer; border-radius: 8px;">
+            🎂 장식 모드 시작!
+        </button>
+    </div>
+</div>
 
 </body>
 </html>

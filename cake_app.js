@@ -38,14 +38,24 @@ let mixingQuality = 0; // 0 to 100
 const NUM_SEGMENTS = 8; // For topping distribution score calculation
 // --- 모드 변수 ---
 let gameMode = 'MAKING'; 
-let makingStep = 0; // 0: 시작, 1: 믹싱 중, 2: 반죽 완료, 3: 굽기 완료, 4: 크림 펴바르기 완료 대기, 5: 장식 모드
+let makingStep = 0; // 0: 시작, 1: 재료 추가, 2: 믹싱 중, 3: 반죽 완료, 4: 굽기 완료, 5: 장식 모드
 let selectedToppingType = null;
 let selectedCreamColor = 0xffffff;
+
+// 🚨 ADDED: Ingredient Adding Variables
+let ingredientStep = 0; // 0: flour, 1: sugar, 2: egg, 3: milk
+const INGREDIENT_SEQUENCE = [
+    { name: 'flour', color: 0xffffff, message: '밀가루 (Flour)' },
+    { name: 'sugar', color: 0xffffff, message: '설탕 (Sugar)' },
+    { name: 'egg', color: 0xffaa00, message: '달걀 (Egg)' },
+    { name: 'milk', color: 0xf0f0f0, message: '우유 (Milk)' }
+];
+// -----------------------------
 
 // 🚨 점수 및 미니게임 변수 추가
 let score = 0;
 let toppingsCount = 0;
-const MAX_COMPLETENESS_COUNT = 25; // 🚨 ADDED: 완성도 바 최대 토핑 개수 정의
+const MAX_COMPLETENESS_COUNT = 25; 
 let pipingActive = false;
 let lastPipingPoint = null;
 const MAX_TOPPING_RADIUS = 1.4; 
@@ -102,49 +112,198 @@ scene.add(frontLight);
 const lightColors = [0xffffff, 0xf183f3, 0x3de6c5, 0xffa500]; 
 let currentLightColorIndex = 0;
 
-// 🚨 ADDED/MODIFIED: 배경 이미지 Texture Loading 및 투명 평면 적용
+// 🚨 MODIFIED: 배경 이미지 Texture Loading 및 투명 평면 적용
 const loader = new THREE.TextureLoader();
 loader.load('./kitchen.jpg', function(texture) {
-    // 1. 큰 평면 생성
     const bgGeometry = new THREE.PlaneGeometry(20, 10);
-    // 2. 텍스처를 맵핑하고 투명도를 0.5로 설정하여 배경색과 블렌딩 (덜 집중되게 함)
     const bgMaterial = new THREE.MeshBasicMaterial({ 
         map: texture, 
         transparent: true, 
-        opacity: 0.5, // 🚨 투명도 적용
+        opacity: 0.5,
         side: THREE.DoubleSide
     });
     const backgroundMesh = new THREE.Mesh(bgGeometry, bgMaterial);
-    
-    // 3. 케이크 뒤쪽에 배치
     backgroundMesh.position.set(0, 4, -4.9);
     scene.add(backgroundMesh);
 }, undefined, function(err) {
     console.error('An error happened loading the kitchen background texture. Falling back to color.', err);
 });
 
+// 🚨 ADDED: Ingredient Textures Loading
+const ingredientTextures = {};
+const textureLoader = new THREE.TextureLoader();
+const expectedIngredients = ['flour', 'sugar', 'egg', 'milk'];
+
+// Texture loading helper function
+function loadIngredientTexture(name, filename, isMaterialFallback = false) {
+    textureLoader.load(filename, (texture) => {
+        ingredientTextures[name] = texture;
+        updateIngredientModels();
+    }, undefined, (err) => {
+        console.error(`Error loading ${filename}. Falling back to color/material.`, err);
+        // Use a placeholder color or material on failure
+        if (isMaterialFallback) {
+             ingredientTextures[name] = new THREE.MeshStandardMaterial({ 
+                color: name === 'milk' ? 0xffffff : (name === 'egg' ? 0xf0e0c0 : 0xe0d8c0), 
+                roughness: 0.5
+            });
+        } else {
+            ingredientTextures[name] = new THREE.Color(name === 'milk' ? 0xffffff : (name === 'egg' ? 0xf0e0c0 : 0xe0d8c0));
+        }
+        updateIngredientModels();
+    });
+}
+
+loadIngredientTexture('flour', './flour.jpg');
+loadIngredientTexture('sugar', './sugar.jpg');
+loadIngredientTexture('egg', './egg.png');
+loadIngredientTexture('milk', './milk.jpg', true); // Use material fallback for milk
+
 
 // --- 3. 주방 환경 설정 (카운터/받침 복원) --- 
 const kitchenGroup = new THREE.Group();
 scene.add(kitchenGroup);
 
-// 🚨 ADDED: 카운터 재질 및 메쉬 복원
-const counterMaterial = new THREE.MeshLambertMaterial({ color: 0xffa07a }); // 연한 오렌지 핑크 카운터
+// 카운터 및 바닥 설정 (중략)
+const counterMaterial = new THREE.MeshLambertMaterial({ color: 0xffa07a });
 const counter = new THREE.Mesh(new THREE.BoxGeometry(5, 1, 5), counterMaterial);
 counter.position.set(0, -0.5, 0);
 counter.receiveShadow = true;
 kitchenGroup.add(counter);
-
-// 🚨 ADDED: 바닥 복원
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshLambertMaterial({ color: 0xfde2e2, side: THREE.DoubleSide })); // 연핑크 바닥
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshLambertMaterial({ color: 0xfde2e2, side: THREE.DoubleSide }));
 floor.rotation.x = -Math.PI / 2; 
 floor.position.y = -1; 
 floor.receiveShadow = true;
 scene.add(floor);
 
 
-// --- 4. 케이크 제작/모델링 요소 ---
+// 🚨 ADDED: Ingredient Models Group (카운터 위에 놓을 재료들)
+const ingredientGroup = new THREE.Group();
+ingredientGroup.position.y = 1.0; // 카운터 높이
+scene.add(ingredientGroup);
 
+// 🚨 ADDED: Function to create/recreate ingredient models (using textures)
+function createIngredientModels() {
+    // Clear existing children
+    ingredientGroup.children.length = 0; 
+    
+    // --- Flour (밀가루 포대) - Simple Textured Box (Rectangular form) ---
+    const flourTexture = ingredientTextures['flour'];
+    const flourMaterial = flourTexture instanceof THREE.Texture 
+        ? new THREE.MeshStandardMaterial({ map: flourTexture })
+        : new THREE.MeshStandardMaterial({ color: flourTexture || 0xe0d8c0, roughness: 0.8, metalness: 0.1 });
+        
+    // 🚨 MODIFIED: Simplified to single BoxGeometry to match user request for rectangular form
+    const flourMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.8, 0.5),
+        flourMaterial
+    );
+    flourMesh.position.set(-1.5, 0.4, 1.8); // Center Y: 0.4 (for 0.8 height)
+    flourMesh.name = 'flour';
+    ingredientGroup.add(flourMesh);
+
+
+    // --- Sugar (설탕 통) - Simple Textured Box (Rectangular form) ---
+    const sugarTexture = ingredientTextures['sugar'];
+    const sugarTopMaterial = sugarTexture instanceof THREE.Texture
+        ? new THREE.MeshStandardMaterial({ map: sugarTexture, side: THREE.DoubleSide })
+        : new THREE.MeshStandardMaterial({ color: sugarTexture || 0xffffff, roughness: 0.9 });
+        
+    // 🚨 MODIFIED: Simplified to single BoxGeometry (sugar bag/box)
+    const sugarMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.7, 0.5),
+        sugarTopMaterial // Use the sugar texture/material directly on the box
+    );
+    sugarMesh.position.set(0.5, 0.35, 1.8); // Center Y: 0.35 (for 0.7 height)
+    sugarMesh.name = 'sugar';
+    ingredientGroup.add(sugarMesh);
+    
+    
+    // --- Egg (달걀 바구니) - Simple Rectangular Tray ---
+    const eggBasketGroup = new THREE.Group();
+    eggBasketGroup.position.set(1.5, 0.0, 1.8); 
+    eggBasketGroup.name = 'egg';
+
+    const eggTexture = ingredientTextures['egg'];
+    const basketMaterial = eggTexture instanceof THREE.Texture
+        ? new THREE.MeshStandardMaterial({ map: eggTexture })
+        : new THREE.MeshStandardMaterial({ color: eggTexture || 0x8b4513, roughness: 0.6 });
+
+    // 🚨 MODIFIED: Basket base is now a rectangular box (tray)
+    const basketBase = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 0.1, 1.0), // Wide, shallow tray
+        basketMaterial
+    );
+    basketBase.position.y = 0.05; // Center Y
+    eggBasketGroup.add(basketBase);
+    
+    // Eggs (kept as simple spheres)
+    for (let i = 0; i < 5; i++) {
+        const egg = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshStandardMaterial({ color: 0xf0e0c0, roughness: 0.5 }));
+        const angle = i * Math.PI * 2 / 5;
+        egg.position.set(Math.cos(angle) * 0.3, 0.2, Math.sin(angle) * 0.3); // Raised position Y=0.2
+        eggBasketGroup.add(egg);
+    }
+    ingredientGroup.add(eggBasketGroup);
+    
+    
+    // --- Milk (우유 팩) - Textured Box with Spout/Cap (Kept as is) ---
+    const milkTexture = ingredientTextures['milk'];
+    const milkMaterial = milkTexture instanceof THREE.Texture
+        ? new THREE.MeshStandardMaterial({ map: milkTexture })
+        : milkTexture;
+        
+    const milkGroup = new THREE.Group();
+    
+    // Base carton (0.4 x 0.7 x 0.4)
+    const milkBase = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.7, 0.4),
+        milkMaterial
+    );
+    milkBase.position.y = 0.35;
+    milkGroup.add(milkBase);
+    
+    // Spout/Cap (0.2 x 0.1 x 0.2)
+    const milkSpout = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.1, 0.2), 
+        new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.3 }) 
+    );
+    milkSpout.position.y = 0.7 + 0.05;
+    milkGroup.add(milkSpout);
+    
+    milkGroup.position.set(-0.5, 0.0, 1.8); // Front row position
+    milkGroup.name = 'milk';
+    ingredientGroup.add(milkGroup);
+
+    ingredientGroup.visible = false;
+}
+
+// Initial call to create models (will use placeholders/fallback if textures aren't loaded yet)
+createIngredientModels(); 
+
+// Function to call after each texture loads
+function updateIngredientModels() {
+    // Check if all textures (or fallbacks) are defined
+    const allLoaded = expectedIngredients.every(name => ingredientTextures.hasOwnProperty(name));
+
+    if (allLoaded) {
+        // Recreate the models with loaded textures
+        createIngredientModels();
+        // If the game is already at making step 1, update the visibility state
+        if (gameMode === 'MAKING' && makingStep === 1) {
+             ingredientGroup.children.forEach(c => c.visible = true);
+             // Ensure correct ingredient visibility if some were already 'used'
+             for(let i = 0; i < ingredientStep; i++) {
+                 const name = INGREDIENT_SEQUENCE[i].name;
+                 const usedMesh = ingredientGroup.children.find(m => m.name === name);
+                 if (usedMesh) usedMesh.visible = false;
+             }
+        }
+    }
+}
+
+
+// --- 4. 케이크 제작/모델링 요소 ---
 // 🚨 텍스처 제거 및 Material 개선
 const bakedMaterial = new THREE.MeshStandardMaterial({ 
     color: 0xe0b28a, 
@@ -176,9 +335,9 @@ scene.add(bowlGroup);
 const bowl = new THREE.Mesh(
     new THREE.CylinderGeometry(2.0, 1.5, 1.0, 32, 1, true),
     new THREE.MeshStandardMaterial({ 
-        color: 0xaaaaaa, // 🚨 MODIFIED: 색상 약간 어둡게 조정
+        color: 0xaaaaaa,
         transparent: true, 
-        opacity: 0.8, // 🚨 MODIFIED: 오파시티 증가 (0.3 -> 0.8)
+        opacity: 0.8,
         side: THREE.BackSide 
     })
 );
@@ -193,7 +352,8 @@ for(let i=0; i<30; i++) {
     mixingContent.add(item);
 }
 mixingContent.position.y = 0.5;
-mixingContent.visible = false;
+mixingContent.visible = false; 
+mixingContent.children.forEach(m => m.visible = false);
 bowlGroup.add(mixingContent);
 
 
@@ -205,14 +365,12 @@ scene.add(cakeGroup);
 
 const cakeLayerGeometry = new THREE.CylinderGeometry(1.5, 1.5, CAKE_HEIGHT, 32);
 
-// 빵 층
 const cakeBody = new THREE.Mesh(cakeLayerGeometry, bakedMaterial);
 cakeBody.position.y = 0; 
 cakeBody.castShadow = true;
 cakeBody.receiveShadow = true;
 cakeGroup.add(cakeBody);
 
-// 생크림 레이어 (케이크 윗면)
 const creamTop = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.1, 32), creamMaterial);
 creamTop.position.y = CAKE_HEIGHT * 0.5 + 0.05; 
 creamTop.castShadow = true;
@@ -220,7 +378,7 @@ creamTop.receiveShadow = true;
 cakeGroup.add(creamTop);
 
 
-// 4-3. 토핑 그룹
+// 4-3. 토핑 그룹 (중략 - 기존 코드 유지)
 const customToppingGroup = new THREE.Group();
 customToppingGroup.position.y = 0.5 * CAKE_HEIGHT + 0.1;
 cakeGroup.add(customToppingGroup);
@@ -230,7 +388,7 @@ themeToppingGroup.position.y = 0.5 * CAKE_HEIGHT + 0.1;
 cakeGroup.add(themeToppingGroup);
 themeToppingGroup.visible = false; 
 
-// --- 촛불 (기존 코드 유지) ---
+// --- 촛불 (중략 - 기존 코드 유지) ---
 const mainCandleGroup = new THREE.Group();
 mainCandleGroup.position.set(0, CAKE_HEIGHT * 0.5 + 0.15, 0); 
 cakeGroup.add(mainCandleGroup);
@@ -249,8 +407,7 @@ let isCandleOn = true;
 candleLight.visible = isCandleOn;
 flame.visible = isCandleOn;
 
-
-// 4-4. 테마별 토핑 (기존 코드 유지)
+// 4-4. 테마별 토핑 (중략 - 기존 코드 유지)
 const themeMeshes = new THREE.Group(); 
 themeToppingGroup.add(themeMeshes); 
 
@@ -311,7 +468,7 @@ for (let i = 0; i < 50; i++) {
 themeMeshes.children.forEach(m => m.visible = false); 
 
 
-// --- 5. 케이크 종류 정의 및 업데이트 함수 (기존 코드 유지) ---
+// --- 5. 케이크 종류 정의 및 업데이트 함수 (중략 - 기존 코드 유지) ---
 const CAKE_THEMES = [
     { body: 0x4a2c2a, cream: 0x7b3f00, topping: 'chocolate' }, 
     { body: 0xffe0e0, cream: 0xffffff, topping: 'strawberry' }, 
@@ -363,8 +520,7 @@ function updateCakeTheme() {
 }
 
 
-// --- 6. 모드 전환 및 제작 단계 로직 ---
-
+// --- 6. 모드 전환 및 제작 단계 로직 (중략 - 기존 코드 유지) ---
 // 🚨 점수 표시 업데이트 함수
 function updateScoreDisplay() {
     const finalScore = Math.max(0, Math.round(score + (toppingsCount * 2)));
@@ -373,7 +529,6 @@ function updateScoreDisplay() {
         scoreElement.textContent = finalScore;
     }
     
-    // 🚨 MODIFIED/ADDED: Completeness Bar Update (장식 완성도 바 업데이트)
     const completenessRatio = Math.min(1, toppingsCount / MAX_COMPLETENESS_COUNT);
     const widthPercent = completenessRatio * 100;
     
@@ -383,59 +538,49 @@ function updateScoreDisplay() {
     }
 }
 
-// 🚨 Topping Balance Quality Mini-game Score Calculation
+// 🚨 Topping Balance Quality Mini-game Score Calculation (중략 - 기존 코드 유지)
 function calculateToppingScore() {
     let balanceScore = 0;
     let totalToppings = customToppingGroup.children.length;
     if (totalToppings === 0) return 0;
     
-    // 1. Radial Distribution Check (Evenness)
     const segmentCounts = new Array(NUM_SEGMENTS).fill(0);
     let totalRadius = 0;
 
     customToppingGroup.children.forEach(topping => {
-        // 'drizzle'은 위치가 고정되어 있으므로 스코어 계산에서 제외
         if (topping.name === 'drizzle') return;
 
         const pos = topping.position;
-        // x, z 좌표를 사용하여 반지름과 각도 계산
         const radius = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
         totalRadius += radius;
 
-        // Angle check (0 to 2*PI)
         const angle = Math.atan2(pos.z, pos.x);
-        // Normalize angle to 0 to 2*PI and map to segment index
         let segmentIndex = Math.floor(((angle + Math.PI) / (2 * Math.PI)) * NUM_SEGMENTS) % NUM_SEGMENTS;
         segmentCounts[segmentIndex]++;
     });
 
-    // Count non-drizzle toppings for accurate average calculation
     const actualToppings = customToppingGroup.children.filter(c => c.name !== 'drizzle').length;
     if (actualToppings === 0) return 0;
 
-    // Calculate variance of counts (lower variance = better distribution)
     const avgCount = actualToppings / NUM_SEGMENTS;
     const variance = segmentCounts.reduce((acc, count) => acc + Math.pow(count - avgCount, 2), 0) / NUM_SEGMENTS;
     
-    // Convert low variance into high score. Max variance is high (e.g., if all 10 toppings are in 1 segment: ~11)
-    const MAX_THEORETICAL_VARIANCE = 15; // Set a high baseline
+    const MAX_THEORETICAL_VARIANCE = 15;
     const normalizedVariance = Math.min(1, variance / MAX_THEORETICAL_VARIANCE); 
     
-    // Score based on evenness (Max 50 points)
     balanceScore += Math.round(50 * (1 - normalizedVariance)); 
     
-    // 2. Clustering Penalty (Encourage spreading out)
     const avgRadius = totalRadius / actualToppings;
-    const IDEAL_RADIUS = 0.8; // Ideal average distance for a spread-out look (Cake radius 1.5)
+    const IDEAL_RADIUS = 0.8;
     const radiusDeviation = Math.abs(avgRadius - IDEAL_RADIUS);
     
-    // Apply penalty for deviation from ideal radius (Max penalty 20 points)
     if (radiusDeviation > 0.3) { 
-        balanceScore -= Math.round(20 * Math.min(1, radiusDeviation / 0.8)); // Normalize deviation to 0-1
+        balanceScore -= Math.round(20 * Math.min(1, radiusDeviation / 0.8));
     }
     
     return Math.max(0, balanceScore);
 }
+
 function setGameMode(mode) {
     gameMode = mode;
     messageElement.style.display = 'none';
@@ -444,22 +589,26 @@ function setGameMode(mode) {
     scoreOverlay.style.display = 'none';
     bowlGroup.visible = false;
     cakeGroup.visible = false;
+    ingredientGroup.visible = false;
     
     mainCandleGroup.visible = true;
     candleLight.visible = isCandleOn;
     flame.visible = isCandleOn;
     
-    // 크림 펴바르기 미니게임 제거: 관련 리스너 제거 로직 삭제
-
     if (mode === 'MAKING') {
         bowlGroup.visible = true;
         cakeBody.visible = false;
         creamTop.visible = false;
-        messageElement.innerHTML = `**Little Patissier's Dream**<br>케이크 제작 시뮬레이션을 시작합니다!<br><span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽 및 믹싱 과정을 진행하세요.`;
-        messageElement.style.display = 'block';
+        
         makingStep = 0;
+        ingredientStep = 0;
         mixingContent.visible = false;
-        mixingContent.children.forEach(m => m.material.color.set(m.geometry.type === 'SphereGeometry' ? 0xffaa00 : 0xffffff)); 
+        mixingContent.children.forEach(m => m.visible = false);
+
+        ingredientGroup.visible = false;
+        
+        messageElement.innerHTML = `**Little Patissier's Dream**<br>케이크 제작 시뮬레이션을 시작합니다!<br><span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽 믹싱 재료를 준비하세요.`;
+        messageElement.style.display = 'block';
         mixingQuality = 0;
         
     } else if (mode === 'DECORATING') {
@@ -467,21 +616,18 @@ function setGameMode(mode) {
         cakeBody.visible = true;
         creamTop.visible = true;
 
-        // 🚨 점수 초기화 및 UI 업데이트
         score = 0;
         toppingsCount = 0;
         customToppingGroup.children.length = 0; 
         updateScoreDisplay();
         
-        // 🚨 메시지 업데이트: Spacebar 추가
         messageElement.innerHTML = `**장식 모드**<br>팔레트에서 <span class="highlight">생크림 색상</span> 또는 <span class="highlight">토핑</span> 선택 후 케이크 윗면을 <span class="highlight">클릭/드래그</span>.<br>완료 후 <span style="color: #f8bbd0;">[Enter]</span> 또는 <span style="color: #f8bbd0;">[Spacebar]</span> 키를 누르세요.`;
         messageElement.style.display = 'block';
         paletteContainer.style.display = 'block';
-        scoreOverlay.style.display = 'block'; // 점수 오버레이 표시
+        scoreOverlay.style.display = 'block';
         customToppingGroup.visible = true;
         themeToppingGroup.visible = false;
         
-        // DECORATING 모드 진입 시 생크림 색상을 흰색으로 초기화
         creamTop.material.color.set(0xffffff); 
         selectedCreamColor = 0xffffff;
         
@@ -500,7 +646,6 @@ function setGameMode(mode) {
         currentThemeIndex = -1; 
         updateCakeTheme();
 
-        // 🚨 Topping Quality Mini-game: 밸런스 점수 계산
         const toppingQualityScore = calculateToppingScore();
         score += toppingQualityScore;
         
@@ -521,21 +666,30 @@ function setGameMode(mode) {
 }
 
 
-// --- 크림 펴바르기 미니게임 관련 함수 제거 완료 ---
-
-
 function advanceMakingStep() {
     makingStep++;
 
     if (makingStep === 1) { 
-        mixingContent.visible = true;
+        ingredientGroup.visible = true;
+        bowlGroup.visible = true;
         
-        // --- START RHYTHM MIXER GAME ---
+        ingredientGroup.children.forEach(m => m.visible = true);
+        
+        const currentIngredient = INGREDIENT_SEQUENCE[ingredientStep];
+        messageElement.innerHTML = `**재료 추가 단계**<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
+        messageElement.style.display = 'block';
+        
+    } else if (makingStep === 2) { 
+        
+        mixingContent.visible = true;
+        ingredientGroup.visible = false;
+
+        mixingContent.children.forEach(m => m.material.color.set(m.geometry.type === 'SphereGeometry' ? 0xffaa00 : 0xffffff)); 
+
         const rhythmDisplay = document.getElementById('rhythm-display');
         document.getElementById('rhythm-mixer').style.display = 'flex';
         messageElement.style.display = 'none';
 
-        // 🚨 ADDED: 리듬 게임 시간 경과 바 초기화
         const rhythmProgressBar = document.getElementById('rhythm-progress-bar');
         if (rhythmProgressBar) {
             rhythmProgressBar.style.width = '100%';
@@ -547,41 +701,33 @@ function advanceMakingStep() {
         rhythmStartTime = Date.now();
         rhythmActive = true;
         
-        // Generate a sequence of 15 random arrows
         for(let i = 0; i < 15; i++) {
             rhythmTargets.push(ARROW_KEYS[Math.floor(Math.random() * ARROW_KEYS.length)]);
         }
 
         rhythmDisplay.innerHTML = rhythmTargets.map(key => `<span class="target-arrow" style="opacity: 0.3;">${ARROW_SYMBOLS[key]}</span>`).join('');
         
-        // Highlight the first target
         if (rhythmDisplay.firstChild) {
             rhythmDisplay.firstChild.style.opacity = 1.0;
-            rhythmDisplay.firstChild.style.color = '#d81b60'; // Set target color
+            rhythmDisplay.firstChild.style.color = '#d81b60';
         }
         
-    } else if (makingStep === 2) { 
-        // 🚨 믹싱 퀄리티 최종 계산 및 시각화 (Rhythm Game Result)
+    } else if (makingStep === 3) { 
         
-        // Normalize score to 0-100% based on max possible score (15 targets * 100/15)
         const targetsCount = rhythmTargets.length;
         const maxPossibleScore = targetsCount * (100 / targetsCount);
         const qualityRatio = Math.min(1, rhythmScore / maxPossibleScore);
         
-        // Finalize mixing quality score
         mixingQuality = qualityRatio * 100;
         
         document.getElementById('rhythm-mixer').style.display = 'none';
-        // 🚨 믹싱 퀄리티 최종 계산 및 시각화 (MAKING Quality Mini-game)
         
-        // 퀄리티에 따라 반죽 색상 미묘하게 변경 (1.0 = 황금색, 0.0 = 연한 색)
         const perfectColor = new THREE.Color(0xf4d03f);
         const poorColor = new THREE.Color(0xffffe0); 
         const finalColor = poorColor.lerp(perfectColor, qualityRatio); 
         
         mixingContent.children.forEach(m => m.material.color.set(finalColor.getHex()));
         
-        // 점수 반영 (최대 30점)
         const mixingScore = Math.round(qualityRatio * 30);
         score += mixingScore;
 
@@ -597,7 +743,8 @@ function advanceMakingStep() {
         messageElement.innerHTML = `**반죽 완료!** ${qualityMessage}<br> <span style="color: #f8bbd0;">[Spacebar]</span>로 굽기를 시작하세요.`;
         messageElement.style.display = 'block';
 
-    } else if (makingStep === 3) { 
+    } else if (makingStep === 4) { 
+        // 🚨 MODIFIED: Show Transition Modal instead of waiting for Spacebar
         bowlGroup.visible = false;
         cakeGroup.visible = true;
         cakeBody.visible = true;
@@ -605,15 +752,13 @@ function advanceMakingStep() {
         cakeBody.material = bakedMaterial; 
         cakeBody.material.color.set(0xe0b28a); 
         
-        // 🚨 크림 펴바르기 미니게임 제거: 바로 장식 모드로 진입합니다.
-        // 크림은 자동으로 발린 것으로 간주하고, 다음 Spacebar에 DECORATING으로 넘어갑니다.
-        messageElement.innerHTML = `**굽기 완료 및 크림 코팅 완료!**<br> <span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 장식 모드에 진입하세요.`;
-
-    } else if (makingStep === 4) {
-        // makingStep 4는 이제 사용되지 않으며, makingStep 3에서 직접 makingStep 5로 넘어갑니다.
-        // 코드를 단순화하기 위해 이 블록을 제거하거나, 다음 단계로 직접 점프하도록 설정합니다.
-        setGameMode('DECORATING');
-    } else if (makingStep === 5) { // 장식 모드 진입
+        document.getElementById('transition-modal').style.display = 'flex'; // Show modal
+        messageElement.style.display = 'none'; // Hide general message
+        
+        // Return without incrementing makingStep yet; button click handles advance
+        return;
+        
+    } else if (makingStep === 5) {
         setGameMode('DECORATING');
     }
 }
@@ -623,7 +768,6 @@ window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase(); 
     const isSpace = (k === ' ' || e.code === 'Space');
     
-    // --- Rhythm Game Input Handling (MAKING Step 1) ---
     if (rhythmActive) {
         e.preventDefault();
         
@@ -633,41 +777,33 @@ window.addEventListener('keydown', (e) => {
         const displayElement = document.getElementById('rhythm-display');
         const currentTargetElement = displayElement.children[targetIndex];
         
-        // Only consume key if it's an Arrow Key
         if (!ARROW_KEYS.includes(e.code)) {
             return; 
         }
 
-        // Check if the pressed key is the required key
         if (e.code === requiredKey) {
             rhythmScore += 100 / rhythmTargets.length; 
             
-            // Mark correct hit visually
             if (currentTargetElement) {
                 currentTargetElement.classList.add('correct');
             }
             
         } else {
-            // Wrong key pressed
             if (currentTargetElement) {
                 currentTargetElement.classList.add('wrong');
-                // Apply penalty only if wrong key is pressed when a target is active
                 rhythmScore -= 50 / rhythmTargets.length; 
                 rhythmScore = Math.max(0, rhythmScore); 
             }
         }
         
-        // In rhythm game, every Arrow key press (correct or wrong) advances to the next target
         targetIndex++;
         
-        // Highlight next target
         const nextTargetElement = displayElement.children[targetIndex];
         if (nextTargetElement) {
             nextTargetElement.style.opacity = 1.0;
             nextTargetElement.style.color = '#d81b60';
         }
 
-        // Check for completion
         if (targetIndex >= rhythmTargets.length) {
             rhythmActive = false; 
             advanceMakingStep();
@@ -675,11 +811,9 @@ window.addEventListener('keydown', (e) => {
         return; 
     }
 
-    // 🚨 MODIFIED: Camera/Movement Controls (Shared by VIEWING and DECORATING)
     const isSharedControlMode = (gameMode === 'VIEWING' || gameMode === 'DECORATING');
 
     if (isSharedControlMode) {
-        // Arrow Key Movement (Cake Group)
         switch (e.key) {
             case 'ArrowUp':
                 cakeGroup.position.y += moveSpeed;
@@ -699,12 +833,10 @@ window.addEventListener('keydown', (e) => {
             e.preventDefault();
         }
 
-        // Camera Switch (P/O)
         if (k === 'p') currentCamera = perspectiveCamera; 
         else if (k === 'o') currentCamera = orthographicCamera; 
         currentCamera.updateProjectionMatrix();
 
-        // Preset Camera Positions (1/2)
         if (k === '1' || k === '2') {
             const targetPosition = new THREE.Vector3();
             cakeGroup.getWorldPosition(targetPosition); 
@@ -723,19 +855,26 @@ window.addEventListener('keydown', (e) => {
     
     // 제작 모드 (MAKING) 컨트롤
     if (gameMode === 'MAKING' && isSpace) { 
-        if (makingStep === 3) { 
-            makingStep = 4; 
+        if (makingStep === 0) {
             advanceMakingStep();
             e.preventDefault(); 
             return;
-        } else if (makingStep < 3) {
+        } else if (makingStep === 1 && ingredientStep === INGREDIENT_SEQUENCE.length) { 
             advanceMakingStep();
             e.preventDefault(); 
             return;
-        }
+        } else if (makingStep === 2 && rhythmActive === false) { // 🚨 ADDED: Rhythm Timeout -> Mixing Complete (2 -> 3) FIX
+            advanceMakingStep(); 
+            e.preventDefault();
+            return;
+        } else if (makingStep === 3) {
+            advanceMakingStep();
+            e.preventDefault(); 
+            return;
+        } 
+        /* 🚨 REMOVED: makingStep 4 to 5 transition is now handled by modal button click. */
     }
 
-    // 장식 모드 (DECORATING) 컨트롤
     const isEnterOrSpace = (k === 'enter' || isSpace);
     if (gameMode === 'DECORATING' && isEnterOrSpace) {
         setGameMode('VIEWING');
@@ -743,7 +882,6 @@ window.addEventListener('keydown', (e) => {
         return;
     }
     
-    // 3. 관람 모드 (VIEWING) 컨트롤 (Only mode-specific controls remain here)
     if (gameMode !== 'VIEWING') return;
 
     if (k === 'k') {
@@ -780,7 +918,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 
-// --- 7. 장식 모드 클릭 및 팔레트 로직 (파이핑 시뮬레이션 및 정교화된 배치) ---
+// --- 7. 장식 모드 클릭 및 팔레트 로직 (중략 - 기존 코드 유지) ---
 
 document.querySelectorAll('.palette-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -812,7 +950,6 @@ function createPipingSegment(x, y, z) {
     const distance = new THREE.Vector2(x, z).length();
     if (distance > MAX_TOPPING_RADIUS) return; 
 
-    // 🚨 원뿔(ConeGeometry)을 사용하여 파이핑 크림 모양 시뮬레이션
     const pipingGeometry = new THREE.ConeGeometry(0.06, 0.12, 16); 
     pipingGeometry.translate(0, 0.06, 0); 
     
@@ -822,7 +959,6 @@ function createPipingSegment(x, y, z) {
     
     newTopping.castShadow = true;
     newTopping.name = 'piping_segment';
-    // Physics Setup for Dropping
     newTopping.userData.velocity = new THREE.Vector3(0, 0, 0);
     newTopping.userData.settled = false;
     activePhysicsMeshes.push(newTopping);
@@ -830,10 +966,8 @@ function createPipingSegment(x, y, z) {
     
     toppingsCount++;
     
-    // 🚨 스플래시 이벤트 추가
     activeSplashMeshes.push({ mesh: newTopping, scale: 1.0, timer: 0, duration: 30 });
     
-    // 🚨 점수 시스템: 중앙에서 너무 벗어난 파이핑에 대해 페널티
     if (distance > 1.0) { 
         score -= 0.1;
     } else {
@@ -842,12 +976,74 @@ function createPipingSegment(x, y, z) {
     updateScoreDisplay();
 }
 
+// 🚨 MODIFIED: Ingredient Click Handler
+function onIngredientClick(event) {
+    if (gameMode !== 'MAKING' || makingStep !== 1) return;
+    
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, currentCamera);
+    const intersects = raycaster.intersectObjects(ingredientGroup.children, true); 
+    
+    if (intersects.length > 0) {
+        let clickedMesh = intersects[0].object;
+        while (clickedMesh.parent && clickedMesh.parent !== ingredientGroup) {
+            clickedMesh = clickedMesh.parent;
+        }
+
+        const requiredName = INGREDIENT_SEQUENCE[ingredientStep].name;
+        
+        if (clickedMesh.name === requiredName) {
+            
+            // 1. Hide the ingredient model
+            clickedMesh.visible = false;
+            
+            // 2. Simple visual cue in the bowl 
+            mixingContent.visible = true;
+            
+            // Show all egg/flour objects up to the current step
+            mixingContent.children.forEach((m, i) => {
+                const isEgg = (i % 5 === 0);
+                if (isEgg && (requiredName === 'egg')) {
+                     m.visible = true;
+                     m.material.color.set(0xffaa00);
+                } else if (!isEgg && (requiredName === 'flour' || requiredName === 'sugar' || requiredName === 'milk')) {
+                     m.visible = true;
+                     m.material.color.set(0xffffff);
+                }
+            });
+
+            // 3. Advance the ingredient step
+            ingredientStep++;
+            
+            if (ingredientStep < INGREDIENT_SEQUENCE.length) {
+                const nextIngredient = INGREDIENT_SEQUENCE[ingredientStep];
+                messageElement.innerHTML = `**재료 추가 단계**<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${nextIngredient.message}</span>`;
+            } else {
+                messageElement.innerHTML = `**재료 추가 완료!**<br><span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 믹싱을 시작하세요.`;
+            }
+            
+        } else {
+            const currentIngredient = INGREDIENT_SEQUENCE[ingredientStep];
+            messageElement.innerHTML = `<span style="color: red;">❌ 잘못된 재료!</span><br>순서대로 넣어주세요: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
+            setTimeout(() => {
+                 messageElement.innerHTML = `**재료 추가 단계**<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
+            }, 1500);
+        }
+    }
+}
+
+
 function onMouseDown(event) {
-    if (gameMode !== 'DECORATING' && gameMode !== 'MAKING') { // 미니게임 중에도 클릭 이벤트 처리
+    if (gameMode !== 'DECORATING' && gameMode !== 'MAKING') {
         return;
     }
     
-    // 🚨 크림 펴바르기 미니게임 제거: 마우스 클릭으로 진행되는 미니게임 로직 삭제
+    if (gameMode === 'MAKING' && makingStep === 1) {
+        onIngredientClick(event);
+        return;
+    }
     
     if (gameMode !== 'DECORATING') return;
     
@@ -894,8 +1090,7 @@ function onMouseUp(event) {
 }
 
 
-function onDecoratingClick(event) { // 일반 토핑 및 색상 변경 전용
-    // 🚨 이 함수는 onMouseDown에서 호출되도록 변경되었으며, 직접 이벤트 리스너는 제거됨
+function onDecoratingClick(event) {
     if (gameMode !== 'DECORATING' || selectedToppingType === 'piping') return;
     
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -939,16 +1134,24 @@ function onDecoratingClick(event) { // 일반 토핑 및 색상 변경 전용
                     newTopping.position.set(point.x, START_Y, point.z); 
                     score += 5; 
                 } else if (selectedToppingType === 'sprinkle') {
+                    // 🚨 MODIFIED: 스프링클 랜덤 회전 및 약간의 랜덤 위치 오프셋 적용
                     const color = sprinkleColors[Math.floor(Math.random() * sprinkleColors.length)];
                     const material = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
                     newTopping = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8), material);
-                    newTopping.position.set(point.x, START_Y, point.z); 
-                    // 🚨 MODIFIED: 스프링클이 클릭 지점에 정확히 놓이도록 X/Z 틸트 제거. Y축 스핀만 허용
-                    const randomSpinY = Math.random() * Math.PI * 2; 
-                    newTopping.rotation.set(0, randomSpinY, 0); 
+                    
+                    // 1. 랜덤 오프셋 적용 (클릭 위치에서 최대 ±0.1m)
+                    const offsetX = (Math.random() - 0.5) * 0.2;
+                    const offsetZ = (Math.random() - 0.5) * 0.2;
+                    newTopping.position.set(point.x + offsetX, START_Y, point.z + offsetZ); 
+                    
+                    // 2. 랜덤 틸트(기울기) 적용 (360도 회전)
+                    newTopping.rotation.set(
+                        Math.random() * Math.PI * 2, // X축 랜덤 회전
+                        Math.random() * Math.PI * 2, // Y축 랜덤 회전
+                        Math.random() * Math.PI * 2  // Z축 랜덤 회전
+                    ); 
                     score += 0.5;
                 } else if (selectedToppingType === 'cherry') {
-                    // 🚨 MODIFIED: 체리 위치 제약 완화 (0.5 -> 1.0)
                     if (distance > 1.0) {
                          messageElement.innerHTML = `<span style="color: red;">체리는 중앙에!</span> 중앙 1m 반경 내에 배치하세요.`;
                          messageElement.style.display = 'block';
@@ -964,7 +1167,6 @@ function onDecoratingClick(event) { // 일반 토핑 및 색상 변경 전용
                 }
                 
                 if (newTopping) {
-                    // Physics Setup for Dropping
                     newTopping.userData.velocity = new THREE.Vector3(0, 0, 0);
                     newTopping.userData.settled = false;
                     activePhysicsMeshes.push(newTopping);
@@ -1002,11 +1204,9 @@ window.addEventListener('resize', () => {
 
 // 계층적 애니메이션 루프
 function animate() {
-    // 믹싱 모션 및 리듬 게임 루프
-    if (gameMode === 'MAKING' && makingStep === 1) {
+    if (gameMode === 'MAKING' && makingStep === 2) {
         mixingContent.rotation.y += 0.05;
 
-        // 🚨 ADDED: 리듬 게임 시간 경과 바 업데이트 (Rhythm Game Progress Bar update)
         const rhythmProgressBar = document.getElementById('rhythm-progress-bar');
 
         if (rhythmActive) {
@@ -1015,10 +1215,9 @@ function animate() {
             const widthPercent = progress * 100;
             
             if (rhythmProgressBar) {
-                rhythmProgressBar.style.width = widthPercent + '%'; // 남은 시간만큼 바 줄이기
+                rhythmProgressBar.style.width = widthPercent + '%';
             }
 
-            // 🚨 리듬 게임 타임아웃 체크
             if (Date.now() > rhythmStartTime + RHYTHM_DURATION) {
                 rhythmActive = false;
                 // Calculate final score before advancing
@@ -1031,19 +1230,16 @@ function animate() {
                 messageElement.style.display = 'block';
             }
         } else {
-            // 게임이 비활성 상태일 때 바를 숨김 (혹시 모를 잔상을 위해)
             if (rhythmProgressBar && rhythmProgressBar.style.width !== '0%') {
                 rhythmProgressBar.style.width = '0%';
             }
         }
     }
 
-    // 회전 (관람 모드에서만)
     if (gameMode === 'VIEWING' && isToppingRotating) {
         const targetGroup = themeToppingGroup.visible ? themeToppingGroup : customToppingGroup;
         targetGroup.rotation.y += TOPPING_ROTATION_SPEED;
     }
-    // 케이크 그룹 전체는 항상 천천히 회전
     cakeGroup.rotation.y += BASE_ROTATION_SPEED;
 
     
@@ -1052,22 +1248,18 @@ function animate() {
     activePhysicsMeshes.forEach(mesh => {
         if (mesh.userData.settled) return;
 
-        // 1. Apply gravity to vertical velocity
         mesh.userData.velocity.y += GRAVITY;
 
-        // 2. Update position
         mesh.position.add(mesh.userData.velocity);
 
-        // 3. Collision check (check if topping hits the surface)
         if (mesh.position.y <= SETTLED_Y) {
-            mesh.position.y = SETTLED_Y; // Clamp to the surface
-            mesh.userData.settled = true; // Mark as settled
+            mesh.position.y = SETTLED_Y;
+            mesh.userData.settled = true;
             meshesToSettle.push(mesh);
-            mesh.userData.velocity.set(0, 0, 0); // Stop motion
+            mesh.userData.velocity.set(0, 0, 0);
         }
     });
 
-    // Remove settled meshes from the active physics list (to save performance)
     meshesToSettle.forEach(mesh => {
         const index = activePhysicsMeshes.indexOf(mesh);
         if (index > -1) {
@@ -1075,7 +1267,7 @@ function animate() {
         }
     });
 
-    // 🚨 ADDED: 스플래쉬 이벤트 애니메이션 처리 (유지)
+    // 🚨 ADDED: 스플래쉬 이벤트 애니메이션 처리
     const meshesToRemove = [];
     activeSplashMeshes.forEach(item => {
         item.timer++;
@@ -1095,13 +1287,11 @@ function animate() {
         if (index > -1) activeSplashMeshes.splice(index, 1);
     });
 
-    // 촛불 깜빡임 효과
     if (isCandleOn) {
         flame.scale.set(1 + Math.sin(Date.now() * 0.01) * 0.1, 1 + Math.sin(Date.now() * 0.01) * 0.1, 1);
         candleLight.intensity = 1.0 + Math.sin(Date.now() * 0.005) * 0.5; 
     }
 
-    // 카메라가 현재 활성화된 그룹을 응시하도록 업데이트
     let target = cakeGroup.visible ? cakeGroup : bowlGroup;
     const targetPosition = new THREE.Vector3();
     target.getWorldPosition(targetPosition);

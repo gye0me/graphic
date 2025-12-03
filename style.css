@@ -17,7 +17,7 @@
     background-image: url('rabbit.jpg'); /* 이미지 파일명 rabbit.jpg로 변경 */
     background-repeat: no-repeat;
     background-position: center 20%; /* 이미지 위치 조정 */
-    background-size: 500px auto; /* rabbit.jpg 사이즈 확대: 300px -> 500px */
+    background-size: 500px auto; /* 🚨 rabbit.jpg 사이즈 확대: 300px -> 500px */
 }
 #title-screen h1 {
     font-size: 5em;
@@ -228,4 +228,70 @@ canvas { display: block; }
 #rhythm-display .wrong {
     color: #ff0000 !important;
     opacity: 1.0 !important;
+}
+
+/* 🚨 ADDED: 드래그 앤 드롭 재료 팔레트 스타일 */
+#ingredient-drag-palette {
+    position: absolute;
+    top: 10px;
+    left: 10px; /* 왼쪽 상단에 배치 */
+    width: 350px;
+    padding: 15px;
+    background: #fff;
+    border-radius: 15px;
+    border: 4px solid #f8bbd0; /* 핑크색 테두리 */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    display: none; /* 초기에는 숨김 */
+    font-family: 'Gaegu', cursive;
+    text-align: center;
+}
+#ingredient-drag-palette h3 {
+    color: #d81b60;
+    margin: 0 0 10px 0;
+    border-bottom: 2px solid #f8bbd0;
+    padding-bottom: 5px;
+}
+#ingredient-drag-palette #mixing-instruction-text {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+}
+#ingredient-icons {
+    display: flex;
+    justify-content: space-around;
+    gap: 5px;
+}
+.ingredient-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: grab;
+    user-select: none;
+    padding: 5px;
+    border: 2px solid transparent;
+    transition: all 0.1s;
+    background-color: #ffe0e0; /* 연핑크 배경 */
+    border-radius: 8px;
+}
+.ingredient-item.correct-next {
+    border-color: #3de6c5; /* 민트색으로 강조 */
+    box-shadow: 0 0 5px #3de6c5;
+}
+.ingredient-item img {
+    width: 50px;
+    height: 50px;
+    border-radius: 5px;
+    pointer-events: none; /* 드래그 시 이미지 복사 방지 */
+}
+.ingredient-item span {
+    font-size: 1em;
+    margin-top: 5px;
+    color: #d81b60;
+    font-weight: bold;
+}
+.dragging {
+    opacity: 0.8;
+    transform: scale(1.2);
 }
