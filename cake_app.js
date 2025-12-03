@@ -36,6 +36,16 @@ const ARROW_SYMBOLS = { 'ArrowUp': '↑', 'ArrowDown': '↓', 'ArrowLeft': '←'
 
 let mixingQuality = 0; // 0 to 100
 const NUM_SEGMENTS = 8; // For topping distribution score calculation
+
+// --- 🚨 RE-ADDED: Baking Variables ---
+let isOvenOpen = false;
+let isBaking = false; 
+let bakingProgress = 0; // 0.0 to 1.0
+const BAKING_DURATION = 8000; // 8 seconds for perfect bake
+let bakingStartTime = 0;
+let ovenTimerElement = null; // HTML timer element
+// -----------------------------
+
 // --- 모드 변수 ---
 let gameMode = 'MAKING'; 
 let makingStep = 0; // 0: 시작, 1: 재료 추가, 2: 믹싱 중, 3: 반죽 완료, 4: 굽기 완료, 5: 장식 모드
@@ -177,6 +187,60 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 
+// 🚨 ADDED: Oven Model (MICROWAVE) (RE-ADDED)
+const MICROWAVE_WIDTH = 2.5;
+const MICROWAVE_HEIGHT = 1.2;
+const MICROWAVE_DEPTH = 1.0;
+
+const ovenBodyMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.2 }); 
+const ovenDoorMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, transparent: true, opacity: 0.8, metalness: 0.8, roughness: 0.1 }); 
+const ovenPanelMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5, roughness: 0.4 }); 
+
+const ovenGroup = new THREE.Group();
+ovenGroup.position.set(0, 0, 0); 
+ovenGroup.visible = false; 
+scene.add(ovenGroup);
+
+// Main Body
+const ovenBody = new THREE.Mesh(new THREE.BoxGeometry(MICROWAVE_WIDTH, MICROWAVE_HEIGHT, MICROWAVE_DEPTH), ovenBodyMaterial);
+ovenBody.position.y = 1.0 + MICROWAVE_HEIGHT / 2; 
+ovenGroup.add(ovenBody);
+
+const DOOR_RATIO = 0.7;
+const doorWidth = MICROWAVE_WIDTH * DOOR_RATIO;
+const panelWidth = MICROWAVE_WIDTH * (1 - DOOR_RATIO);
+
+const controlPanel = new THREE.Mesh(new THREE.BoxGeometry(panelWidth, MICROWAVE_HEIGHT, 0.05), ovenPanelMaterial);
+controlPanel.position.set(MICROWAVE_WIDTH / 2 - panelWidth / 2, 1.0 + MICROWAVE_HEIGHT / 2, MICROWAVE_DEPTH / 2 + 0.025);
+ovenGroup.add(controlPanel);
+
+const doorPivot = new THREE.Group();
+doorPivot.position.set(MICROWAVE_WIDTH / 2 - panelWidth, 1.0 + MICROWAVE_HEIGHT / 2, MICROWAVE_DEPTH / 2 + 0.025); 
+ovenGroup.add(doorPivot);
+
+const ovenDoor = new THREE.Mesh(new THREE.BoxGeometry(doorWidth, MICROWAVE_HEIGHT - 0.1, 0.05), ovenDoorMaterial);
+ovenDoor.position.set(-doorWidth / 2, 0, 0); 
+ovenDoor.name = 'ovenDoor';
+doorPivot.add(ovenDoor);
+
+doorPivot.rotation.y = -Math.PI * 0.66; 
+isOvenOpen = true; 
+
+// 🚨 ADDED: Cake Pan Model (Cylinder) (RE-ADDED)
+const cakePanMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, roughness: 0.3 });
+const cakePanGeometry = new THREE.CylinderGeometry(1.5, 1.5, 0.2, 32);
+
+const cakePan = new THREE.Mesh(cakePanGeometry, cakePanMaterial);
+cakePan.rotation.y = Math.PI / 2;
+cakePan.position.set(0, 0.1, 0); 
+cakePan.name = 'cakePan';
+cakePan.visible = false;
+scene.add(cakePan); 
+
+// Raw Batter Material (RE-ADDED)
+const rawBatterMaterial = new THREE.MeshStandardMaterial({ color: 0xfdebd0, roughness: 0.8 }); 
+
+
 // 🚨 ADDED: Ingredient Models Group (카운터 위에 놓을 재료들)
 const ingredientGroup = new THREE.Group();
 ingredientGroup.position.y = 1.0; // 카운터 높이
@@ -225,9 +289,7 @@ function createIngredientModels() {
     eggBasketGroup.name = 'egg';
 
     const eggTexture = ingredientTextures['egg'];
-    const basketMaterial = eggTexture instanceof THREE.Texture
-        ? new THREE.MeshStandardMaterial({ map: eggTexture })
-        : new THREE.MeshStandardMaterial({ color: eggTexture || 0x8b4513, roughness: 0.6 });
+    const basketMaterial = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.6, metalness: 0.1 }); 
 
     // 🚨 MODIFIED: Basket base is now a rectangular box (tray)
     const basketBase = new THREE.Mesh(
@@ -239,7 +301,8 @@ function createIngredientModels() {
     
     // Eggs (kept as simple spheres)
     for (let i = 0; i < 5; i++) {
-        const egg = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshStandardMaterial({ color: 0xf0e0c0, roughness: 0.5 }));
+        const egg = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), new THREE.MeshPhongMaterial({ color: 0xf0e0c0, shininess: 50 }));
+        egg.scale.y = 1.2; 
         const angle = i * Math.PI * 2 / 5;
         egg.position.set(Math.cos(angle) * 0.3, 0.2, Math.sin(angle) * 0.3); // Raised position Y=0.2
         eggBasketGroup.add(egg);
@@ -344,10 +407,10 @@ const bowl = new THREE.Mesh(
 bowl.position.y = 0.5;
 bowlGroup.add(bowl);
 const mixingContent = new THREE.Group();
-const egg = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
-const flour = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+const eggInBowl = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+const flourInBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff }));
 for(let i=0; i<30; i++) {
-    const item = i % 5 === 0 ? egg.clone() : flour.clone();
+    const item = i % 5 === 0 ? eggInBowl.clone() : flourInBowl.clone();
     item.position.set((Math.random() - 0.5) * 2, Math.random() * 0.5, (Math.random() - 0.5) * 2);
     mixingContent.add(item);
 }
@@ -590,6 +653,9 @@ function setGameMode(mode) {
     bowlGroup.visible = false;
     cakeGroup.visible = false;
     ingredientGroup.visible = false;
+    ovenGroup.visible = false; // 🚨 ADDED: Oven hide
+    cakePan.visible = false; // 🚨 ADDED: Pan hide
+
     
     mainCandleGroup.visible = true;
     candleLight.visible = isCandleOn;
@@ -611,10 +677,18 @@ function setGameMode(mode) {
         messageElement.style.display = 'block';
         mixingQuality = 0;
         
+        // 🚨 ADDED: Reset camera to standard, non-tilted view for MAKING mode
+        perspectiveCamera.position.set(0, 2.0, 4); 
+        perspectiveCamera.up.set(0, 1, 0);
+        perspectiveCamera.lookAt(0, 0.5, 0);
+
+        
     } else if (mode === 'DECORATING') {
+        // 🚨 ADDED/FIXED: Ensure cake is visible and reset position for decoration
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
+        cakeGroup.position.set(0, 0.5, 0); // Center the cake for decorating
 
         score = 0;
         toppingsCount = 0;
@@ -635,9 +709,26 @@ function setGameMode(mode) {
         document.querySelector('.palette-item[data-color="0xffffff"]').classList.add('selected');
 
     } else if (mode === 'VIEWING') {
+        // 🚨 ADDED: Ensure oven timer is hidden/removed if it exists
+        if (ovenTimerElement && ovenTimerElement.parentElement) {
+            ovenTimerElement.parentElement.removeChild(ovenTimerElement);
+            ovenTimerElement = null; // Clear global reference
+        }
+        
+        // 🚨 FIXED: Ensure cake is visible and reset rotation/position for viewing
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
+        
+        // Reset rotation and position
+        cakeGroup.rotation.y = 0;
+        customToppingGroup.rotation.y = 0;
+        cakeGroup.position.set(0, 0.5, 0); // Center the cake
+
+        // 🚨 ADDED: Reset camera to standard, non-tilted view
+        perspectiveCamera.position.set(0, 2.0, 4); 
+        perspectiveCamera.up.set(0, 1, 0); // Ensure the up vector is vertical (no roll/tilt)
+        perspectiveCamera.lookAt(0, 0.5, 0); // Look at the vertical center of the cake
 
         controlsElement.style.display = 'block';
         
@@ -722,6 +813,7 @@ function advanceMakingStep() {
         
         document.getElementById('rhythm-mixer').style.display = 'none';
         
+        // Mixing quality visual feedback (color change)
         const perfectColor = new THREE.Color(0xf4d03f);
         const poorColor = new THREE.Color(0xffffe0); 
         const finalColor = poorColor.lerp(perfectColor, qualityRatio); 
@@ -740,23 +832,71 @@ function advanceMakingStep() {
             qualityMessage = "❌ **믹싱 부족!** 리듬감이 부족했어요. (+" + mixingScore + "점)";
         }
 
-        messageElement.innerHTML = `**반죽 완료!** ${qualityMessage}<br> <span style="color: #f8bbd0;">[Spacebar]</span>로 굽기를 시작하세요.`;
+        // Set up the scene for pouring
+        bowlGroup.visible = true;
+        bowlGroup.position.set(-1.5, 1.0, 0.5); 
+        
+        // Show Pan on counter 
+        cakePan.position.set(-0.5, 1.0 + 0.1, 0.5); 
+        cakePan.visible = true;
+        cakePan.userData.poured = false;
+        
+        // Raw Batter Material setup
+        cakePan.material = cakePanMaterial.clone(); 
+        cakePan.material.needsUpdate = true;
+        
+        // Remove old batter mesh if it exists
+        if (cakePan.userData.batter) {
+            cakePan.remove(cakePan.userData.batter);
+            delete cakePan.userData.batter;
+        }
+        
+        // Add oven to scene 
+        ovenGroup.position.set(2.0, 0.0, 0.0); 
+        ovenGroup.visible = true; 
+        
+        // Reset/Open oven door initially
+        doorPivot.rotation.y = -Math.PI * 0.66; 
+        isOvenOpen = true;
+        isBaking = false;
+        bakingProgress = 0;
+        
+        messageElement.innerHTML = `${qualityMessage}<br> 이제 케이크 틀에 반죽을 부어 오븐에 넣어주세요.<br> <span class="highlight">믹싱 볼</span>을 클릭하여 반죽을 <span class="highlight">케이크 틀</span>에 붓고, <span class="highlight">케이크 틀</span>을 클릭하여 오븐에 넣으세요.`;
         messageElement.style.display = 'block';
 
     } else if (makingStep === 4) { 
-        // 🚨 MODIFIED: Show Transition Modal instead of waiting for Spacebar
+        // 🚨 MODIFIED: **Making Step 4: Baking Complete / Transition**
+        
         bowlGroup.visible = false;
+        ovenGroup.visible = false; 
+        
+        // Cake is now ready for decoration. Show the finished cake model (cakeGroup).
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
-        cakeBody.material = bakedMaterial; 
-        cakeBody.material.color.set(0xe0b28a); 
         
-        document.getElementById('transition-modal').style.display = 'flex'; // Show modal
-        messageElement.style.display = 'none'; // Hide general message
+        // Determine final cake color based on baking progress
+        let finalCakeColor;
+        if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
+            finalCakeColor = new THREE.Color(0xe0b28a); // Golden Brown (Perfect/Good)
+            score += 50;
+        } else if (bakingProgress < 1.0) {
+             finalCakeColor = new THREE.Color(0xf1e4c3); // Undercooked pale color
+             score += 10;
+        } else {
+            finalCakeColor = new THREE.Color(0x734848); // Burnt dark color
+            score += 0;
+        }
         
-        // Return without incrementing makingStep yet; button click handles advance
-        return;
+        cakeBody.material.color.copy(finalCakeColor);
+        cakeBody.material.needsUpdate = true;
+
+        cakePan.visible = false; 
+        
+        document.getElementById('transition-modal').style.display = 'flex';
+        messageElement.style.display = 'none';
+        
+        return; // Wait for button click.
         
     } else if (makingStep === 5) {
         setGameMode('DECORATING');
@@ -1045,6 +1185,118 @@ function onMouseDown(event) {
         return;
     }
     
+    // 🚨 ADDED: Baking Phase Interactions (MAKING STEP 3)
+    if (gameMode === 'MAKING' && makingStep === 3) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, currentCamera);
+        
+        // Get the bowl mesh for interaction
+        const bowlMesh = bowlGroup.children.find(c => c.geometry.type === 'CylinderGeometry' && c.material.side === THREE.BackSide);
+        
+        // List of interactable objects in this step: Bowl, Pan, Oven Door
+        const interactables = [bowlMesh, cakePan, doorPivot.children[0]]; 
+        const intersects = raycaster.intersectObjects(interactables, true);
+
+        if (intersects.length > 0) {
+            const clickedObject = intersects[0].object;
+            const clickedName = clickedObject.name || clickedObject.parent.name;
+            
+            // Sub-step 0: Pouring (Click Bowl)
+            if (clickedObject === bowlMesh && cakePan.userData.poured === false) {
+                
+                // 🚨 MODIFIED: INSTANT POUR (Animation Removed)
+                bowlGroup.visible = false;
+                mixingContent.visible = false;
+                cakePan.userData.poured = true;
+                
+                // Show the batter inside the pan (instant visual update)
+                cakePan.userData.batter = new THREE.Mesh(
+                    new THREE.CylinderGeometry(1.4, 1.4, 0.1, 32),
+                    rawBatterMaterial.clone()
+                );
+                cakePan.userData.batter.position.y = 0.15;
+                cakePan.add(cakePan.userData.batter);
+                
+                messageElement.innerHTML = `**반죽 부음 완료!** 이제 <span class="highlight">케이크 틀</span>을 클릭하여 오븐에 넣고, <span class="highlight">오븐 문</span>을 클릭해 굽기를 시작하세요.`;
+
+                return;
+            } 
+            
+            // Sub-step 1: Placing in Oven (Click Pan)
+            else if ((clickedName === 'cakePan' || clickedObject.parent.name === 'cakePan') && cakePan.userData.poured === true && !isBaking && isOvenOpen) {
+                
+                // Move pan to oven (visually hide from counter)
+                cakePan.visible = false; 
+                
+                messageElement.innerHTML = `**틀 배치 완료!** <span class="highlight">오븐 문</span>을 클릭하여 닫고 굽기를 시작하세요.`;
+
+                return;
+            }
+            
+            // Sub-step 2: Start Baking / Take Out (Click Door)
+            else if (clickedName === 'ovenDoor' || clickedObject.parent.name === 'ovenDoor') {
+
+                if (cakePan.userData.poured === true && !isBaking) {
+                    // Start baking
+                    doorPivot.rotation.y = 0; 
+                    isOvenOpen = false;
+                    isBaking = true;
+                    bakingStartTime = Date.now();
+                    
+                    // Hide instruction message and show timer
+                    messageElement.style.display = 'none';
+                    if (!ovenTimerElement) {
+                        ovenTimerElement = document.createElement('div');
+                        ovenTimerElement.id = 'oven-timer';
+                        ovenTimerElement.style.cssText = 'position: absolute; top: 10px; right: 10px; padding: 10px; background: rgba(0, 0, 0, 0.8); color: white; border-radius: 5px; font-family: "Gaegu", cursive; z-index: 100;';
+                        document.body.appendChild(ovenTimerElement);
+                    }
+                    ovenTimerElement.style.display = 'block';
+
+                    return;
+                    
+                } else if (isBaking) {
+                    // Attempt to take out cake (Open Door)
+                    
+                    doorPivot.rotation.y = -Math.PI * 0.66; 
+                    isOvenOpen = true;
+                    isBaking = false; 
+                    
+                    if(ovenTimerElement) ovenTimerElement.style.display = 'none';
+                    
+                    // Check baking progress
+                    if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
+                        messageElement.innerHTML = `✨ **성공!** 케이크가 황금빛으로 완벽하게 구워졌습니다!`;
+                        messageElement.style.display = 'block';
+                        // Move to next step (Baking Complete)
+                        advanceMakingStep(); // 3 -> 4
+                        
+                    } else {
+                        // Fail state
+                        let statusMsg;
+                        if (bakingProgress < 1.0) {
+                            statusMsg = '덜 구워졌습니다';
+                        } else {
+                            statusMsg = '타버렸습니다';
+                        }
+                        
+                        messageElement.innerHTML = `❌ **실패!** 케이크가 ${statusMsg}! 장식은 가능하지만 점수는 낮습니다.`;
+                        messageElement.style.display = 'block';
+                        
+                        // Proceed with the imperfect cake
+                        advanceMakingStep(); // 3 -> 4 
+                    }
+                    
+                    return;
+                }
+            }
+        }
+        
+        return; 
+    }
+    
     if (gameMode !== 'DECORATING') return;
     
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -1204,6 +1456,46 @@ window.addEventListener('resize', () => {
 
 // 계층적 애니메이션 루프
 function animate() {
+    
+    // 🚨 RE-ADDED: Baking Simulation Logic
+    if (gameMode === 'MAKING' && makingStep === 3 && isBaking) {
+        const elapsedTime = Date.now() - bakingStartTime;
+        bakingProgress = elapsedTime / BAKING_DURATION;
+
+        // Update Cake Color (Pale to Golden-Brown to Burnt)
+        const rawColor = new THREE.Color(0xfdebd0); // Raw
+        const bakedColor = new THREE.Color(0xe0b28a); // Golden Brown
+        const burntColor = new THREE.Color(0x4a2c2a); // Burnt
+        
+        let currentColor;
+        let bakingStatusMessage = "";
+        
+        if (bakingProgress <= 1.0) {
+            // Smooth transition from raw to baked (0 to 100%)
+            currentColor = rawColor.clone().lerp(bakedColor, bakingProgress);
+            bakingStatusMessage = `굽는 중... (${Math.ceil(BAKING_DURATION/1000 - elapsedTime/1000)}초 남음)`;
+        } else {
+            // Transition from baked to burnt (100% onwards)
+            const maxBurntDuration = BAKING_DURATION * 0.5; // 4 seconds grace period to go fully burnt
+            const burntProgress = Math.min(1.0, (elapsedTime - BAKING_DURATION) / maxBurntDuration);
+            currentColor = bakedColor.clone().lerp(burntColor, burntProgress);
+            bakingStatusMessage = `완료! (${Math.ceil((elapsedTime - BAKING_DURATION)/1000)}초 초과 - 타는 중...)`;
+        }
+        
+        if (cakePan.userData.batter) {
+            cakePan.userData.batter.material.color.copy(currentColor);
+            cakePan.userData.batter.material.needsUpdate = true;
+        }
+        
+        // Update Oven Timer UI
+        if (ovenTimerElement) {
+            ovenTimerElement.innerHTML = `**오븐 타이머:**<br>${bakingStatusMessage}<br>진행도: ${(bakingProgress * 100).toFixed(0)}%`;
+            ovenTimerElement.style.color = bakingProgress >= 1.0 ? 'red' : 'white';
+            ovenTimerElement.style.color = (bakingProgress >= 0.9 && bakingProgress <= 1.1) ? 'lightgreen' : ovenTimerElement.style.color;
+        }
+    }
+
+
     if (gameMode === 'MAKING' && makingStep === 2) {
         mixingContent.rotation.y += 0.05;
 
