@@ -12,6 +12,67 @@ const CAKE_HEIGHT = 1.0;
 const BASE_ROTATION_SPEED = 0.001;
 const TOPPING_ROTATION_SPEED = 0.015;
 
+// --- 🎧 Sound Variables (추가된 코드) ---
+const AUDIO_FILES = {
+    BGM: "BGM.mp3",
+    NORMAL: "normal.mp3",
+    SUCCESS: "success.mp3",
+    WRONG: "wrong.mp3",
+    INGREDIENT: "ingrediant.mp3" // 재료/토핑 파일명
+};
+
+const sounds = {};
+let bgmAudio; 
+
+function initAudio() {
+    // 1. BGM Setup (루프 재생)
+    bgmAudio = new Audio(AUDIO_FILES.BGM);
+    bgmAudio.loop = true;
+    bgmAudio.volume = 0.5; // BGM 볼륨 조정
+
+    // 2. SFX Setup (효과음)
+    for (const key in AUDIO_FILES) {
+        if (key !== 'BGM') {
+            // 효과음들은 미리 로드
+            const audio = new Audio(AUDIO_FILES[key]);
+            audio.volume = 1.0;
+            sounds[key] = audio;
+        }
+    }
+}
+initAudio(); 
+
+// 배경음악 재생 (사용자 상호작용 후 호출)
+function playBGM() {
+    if (bgmAudio) {
+        bgmAudio.play().catch(e => console.log("BGM Autoplay prevented:", e));
+    }
+}
+
+// 배경음악 정지
+function stopBGM() {
+    if (bgmAudio) {
+        bgmAudio.pause();
+        bgmAudio.currentTime = 0;
+    }
+}
+
+// 효과음 재생 헬퍼
+function playSfx(key) {
+    if (sounds[key]) {
+        const audio = sounds[key];
+        audio.currentTime = 0; // 즉시 재생
+        audio.play().catch(e => console.log(`SFX ${key} play error:`, e));
+    }
+}
+
+// 사운드 파일명을 활용한 상황별 호출 함수
+function play_normal_click_sfx() { playSfx('NORMAL'); }
+function play_success_sfx() { playSfx('SUCCESS'); }
+function play_wrong_sfx() { playSfx('WRONG'); }
+function play_ingredient_sfx() { playSfx('INGREDIENT'); }
+// ------------------------------------
+
 const scene = new THREE.Scene(); 
 scene.background = new THREE.Color(0xf8e8f0); // 배경색을 핑크빛 주방처럼 유지 (배경 이미지와 블렌딩 목적)
 
@@ -685,6 +746,7 @@ function setGameMode(mode) {
         perspectiveCamera.up.set(0, 1, 0); 
         perspectiveCamera.lookAt(0, 0.5, 0);
 
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 모드 진입
         
     } else if (mode === 'DECORATING') {
         
@@ -710,6 +772,8 @@ function setGameMode(mode) {
         
         document.querySelectorAll('.palette-item').forEach(i => i.classList.remove('selected'));
         document.querySelector('.palette-item[data-color="0xffffff"]').classList.add('selected');
+
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 모드 진입
 
     } else if (mode === 'VIEWING') {
 
@@ -756,6 +820,8 @@ function setGameMode(mode) {
         messageElement.innerHTML = `⭐ 케이크 완성! 최종 점수: <span style="color: #ffaa00; font-size: 1.5em;">${finalScore}</span>점! ⭐ ${toppingQualityMessage}<br> [Enter]를 눌러 관람 모드를 시작하세요.`;
         messageElement.style.display = 'block';
         setTimeout(() => messageElement.style.display = 'none', 3000); 
+        
+        play_success_sfx(); // ✅ 성공/정답 효과음: 케이크 완성 시
     }
 }
 
@@ -772,6 +838,8 @@ function advanceMakingStep() {
         const currentIngredient = INGREDIENT_SEQUENCE[ingredientStep];
         messageElement.innerHTML = `재료 추가 단계<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
         messageElement.style.display = 'block';
+        
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 단계 진행
         
     } else if (makingStep === 2) { 
         
@@ -805,6 +873,8 @@ function advanceMakingStep() {
             rhythmDisplay.firstChild.style.opacity = 1.0;
             rhythmDisplay.firstChild.style.color = '#d81b60';
         }
+        
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 단계 진행
         
     } else if (makingStep === 3) { 
         
@@ -867,6 +937,8 @@ function advanceMakingStep() {
         messageElement.innerHTML = `${qualityMessage}<br> 이제 케이크 틀에 반죽을 부어 오븐에 넣어주세요.<br> <span class="highlight">믹싱 볼</span>을 클릭하여 반죽을 <span class="highlight">케이크 틀</span>에 붓고, <span class="highlight">케이크 틀</span>을 클릭하여 오븐에 넣으세요.`;
         messageElement.style.display = 'block';
 
+        play_success_sfx(); // ✅ 성공/정답 효과음: 믹싱 완료
+        
     } else if (makingStep === 4) { 
         
 
@@ -882,14 +954,17 @@ function advanceMakingStep() {
         
         let finalCakeColor;
         if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
-            finalCakeColor = new THREE.Color(0xe0b28a); 
+            finalCakeColor = new THREE.Color(0xcc8855); // 노릇노릇/진하게 (Perfect)
             score += 50;
+            play_success_sfx(); // ✅ 성공/정답 효과음: 베이킹 성공
         } else if (bakingProgress < 1.0) {
-             finalCakeColor = new THREE.Color(0xf1e4c3); // Undercooked pale color
+             finalCakeColor = new THREE.Color(0xf1e4c3); // 하얗게 (Undercooked pale color)
             score += 10;
+            play_wrong_sfx(); // ❌ 실패/오답 효과음: 덜 구워짐
         } else {
-            finalCakeColor = new THREE.Color(0x734848); // Burnt dark color
+            finalCakeColor = new THREE.Color(0x5d471b); // 황토색 느낌으로 진하게 (Burnt dark color)
             score += 0;
+            play_wrong_sfx(); // ❌ 실패/오답 효과음: 타버림
         }
         
         cakeBody.material.color.copy(finalCakeColor);
@@ -931,6 +1006,7 @@ window.addEventListener('keydown', (e) => {
             if (currentTargetElement) {
                 currentTargetElement.classList.add('correct');
             }
+            play_success_sfx(); // ✅ 성공/정답 효과음: 리듬 게임 성공
             
         } else {
             if (currentTargetElement) {
@@ -938,6 +1014,7 @@ window.addEventListener('keydown', (e) => {
                 rhythmScore -= 50 / rhythmTargets.length; 
                 rhythmScore = Math.max(0, rhythmScore); 
             }
+            play_wrong_sfx(); // ❌ 실패/오답 효과음: 리듬 게임 실패
         }
         
         targetIndex++;
@@ -958,6 +1035,8 @@ window.addEventListener('keydown', (e) => {
     const isSharedControlMode = (gameMode === 'VIEWING' || gameMode === 'DECORATING');
 
     if (isSharedControlMode) {
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 카메라/물체 이동 시
+        
         switch (e.key) {
             case 'ArrowUp':
                 cakeGroup.position.y += moveSpeed;
@@ -1041,6 +1120,7 @@ window.addEventListener('keydown', (e) => {
             }
         }
         updateCakeTheme();
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 테마 전환
     }
     
     if (k === 'l') {
@@ -1049,17 +1129,20 @@ window.addEventListener('keydown', (e) => {
         spotLight.color.set(newColor);
         frontLight.color.set(newColor); 
         spotLight.intensity = (currentLightColorIndex === 0) ? 2.0 : 1.5;
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 조명 변경
     }
 
     if (isSpace) {
         isToppingRotating = !isToppingRotating;
         e.preventDefault();
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 토핑 회전/정지
     }
 
     if (k === 'c') {
         isCandleOn = !isCandleOn;
         candleLight.visible = isCandleOn;
         flame.visible = isCandleOn;
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 촛불 켜기/끄기
     }
 });
 
@@ -1082,6 +1165,7 @@ document.querySelectorAll('.palette-item').forEach(item => {
             selectedToppingType = type;
             selectedCreamColor = 0; 
         }
+        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 팔레트 아이템 선택
     });
 });
 
@@ -1120,6 +1204,7 @@ function createPipingSegment(x, y, z) {
         score += 0.05;
     }
     updateScoreDisplay();
+    play_ingredient_sfx(); // ✅ 재료/토핑 효과음: 파이핑 크림 생성
 }
 
 // MODIFIED: Ingredient Click Handler
@@ -1169,6 +1254,7 @@ function onIngredientClick(event) {
             } else {
                 messageElement.innerHTML = `**재료 추가 완료!**<br><span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 믹싱을 시작하세요.`;
             }
+            play_ingredient_sfx(); // ✅ 재료/토핑 효과음: 재료 추가 성공
             
         } else {
             const currentIngredient = INGREDIENT_SEQUENCE[ingredientStep];
@@ -1176,6 +1262,7 @@ function onIngredientClick(event) {
             setTimeout(() => {
                  messageElement.innerHTML = `**재료 추가 단계**<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
             }, 1500);
+            play_wrong_sfx(); // ❌ 실패/오답 효과음: 잘못된 재료 클릭
         }
     }
 }
@@ -1226,7 +1313,7 @@ function onMouseDown(event) {
                 cakePan.add(cakePan.userData.batter);
                 
                 messageElement.innerHTML = `**반죽 부음 완료!** 이제 <span class="highlight">케이크 틀</span>을 클릭하여 오븐에 넣고, <span class="highlight">오븐 문</span>을 클릭해 굽기를 시작하세요.`;
-
+                play_ingredient_sfx(); // ✅ 재료/토핑 효과음: 반죽 붓기
                 return;
             } 
             
@@ -1237,7 +1324,7 @@ function onMouseDown(event) {
                 cakePan.visible = false; 
                 
                 messageElement.innerHTML = `**틀 배치 완료!** <span class="highlight">오븐 문</span>을 클릭하여 닫고 굽기를 시작하세요.`;
-
+                play_ingredient_sfx(); // ✅ 재료/토핑 효과음: 케이크 틀 배치
                 return;
             }
             
@@ -1260,6 +1347,7 @@ function onMouseDown(event) {
                         document.body.appendChild(ovenTimerElement);
                     }
                     ovenTimerElement.style.display = 'block';
+                    play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 오븐 문 닫기
 
                     return;
                     
@@ -1271,6 +1359,7 @@ function onMouseDown(event) {
                     isBaking = false; 
                     
                     if(ovenTimerElement) ovenTimerElement.style.display = 'none';
+                    play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 오븐 문 열기
                     
                     // Check baking progress
                     if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
@@ -1362,6 +1451,7 @@ function onDecoratingClick(event) {
         if (selectedCreamColor) {
             creamTop.material.color.set(selectedCreamColor);
             creamTop.material.needsUpdate = true;
+            play_ingredient_sfx(); // ✅ 재료/토핑 효과음: 생크림 색상 변경
             
         } else if (selectedToppingType) {
             const point = intersects[0].point;
@@ -1385,6 +1475,7 @@ function onDecoratingClick(event) {
                         messageElement.innerHTML = `<span style="color: red;">너무 가깝습니다!</span> 간격을 두고 배치하세요.`;
                         messageElement.style.display = 'block';
                         setTimeout(() => messageElement.style.display = 'none', 1000);
+                        play_wrong_sfx(); // ❌ 실패/오답 효과음: 토핑 너무 가까움
                         return;
                     }
                     
@@ -1414,6 +1505,7 @@ function onDecoratingClick(event) {
                          messageElement.innerHTML = `<span style="color: red;">체리는 중앙에!</span> 중앙 1m 반경 내에 배치하세요.`;
                          messageElement.style.display = 'block';
                          setTimeout(() => messageElement.style.display = 'none', 1000);
+                         play_wrong_sfx(); // ❌ 실패/오답 효과음: 체리 위치 잘못됨
                          return;
                     }
                     newTopping = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), new THREE.MeshPhongMaterial({ color: 0xcc0000, shininess: 50 }));
@@ -1436,12 +1528,14 @@ function onDecoratingClick(event) {
                     
                     if (selectedToppingType !== 'drizzle') {
                         activeSplashMeshes.push({ mesh: newTopping, scale: 1.0, timer: 0, duration: 30 });
+                        play_ingredient_sfx(); // ✅ 재료/토핑 효과음: 일반 토핑 추가
                     }
                 }
             } else {
                  messageElement.innerHTML = `<span style="color: red;">케이크 밖에는 배치할 수 없습니다!</span>`;
                  messageElement.style.display = 'block';
                  setTimeout(() => messageElement.style.display = 'none', 1000);
+                 play_wrong_sfx(); // ❌ 실패/오답 효과음: 케이크 밖 배치
             }
         }
     }
@@ -1471,7 +1565,7 @@ function animate() {
         // Update Cake Color (Pale to Golden-Brown to Burnt)
         const rawColor = new THREE.Color(0xfdebd0); // Raw
         const bakedColor = new THREE.Color(0xe0b28a); // Golden Brown
-        const burntColor = new THREE.Color(0x4a2c2a); // Burnt
+        const burntColor = new THREE.Color(0x5d471b); // Burnt (Deep Burnt Ochre/황토색)
         
         let currentColor;
         let bakingStatusMessage = "";

@@ -71,8 +71,7 @@
 
 <script src="./cake_app.js"></script>
 <script>
-
-
+// 전역 변수 및 함수가 cake_app.js에 정의되어 있다고 가정합니다.
 
 // 초기 모드 설정 (타이틀 화면에서 시작)
 document.addEventListener('DOMContentLoaded', () => {
@@ -90,6 +89,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderer.domElement.style.display = 'block'; // 캔버스 보이기
         renderer.setAnimationLoop(animate); // 게임 시작 버튼 클릭 시 애니메이션 루프 시작
         setGameMode('MAKING'); // 게임 시작 플로우 실행
+        
+        // 🎧 ADDED: BGM 재생 시작 (사용자 상호작용 후)
+        if (typeof playBGM === 'function') {
+            playBGM();
+        }
     });
 
     const startDecoratingButton = document.getElementById('start-decorating-button');
