@@ -13,13 +13,12 @@ const BASE_ROTATION_SPEED = 0.001;
 const TOPPING_ROTATION_SPEED = 0.015;
 
 const scene = new THREE.Scene(); 
-scene.background = new THREE.Color(0xf8e8f0); // 🚨 MODIFIED: 배경색을 핑크빛 주방처럼 유지 (배경 이미지와 블렌딩 목적)
+scene.background = new THREE.Color(0xf8e8f0); // 배경색을 핑크빛 주방처럼 유지 (배경 이미지와 블렌딩 목적)
 
-// --- Physics Variables for Topping Drop Simulation ---
-const GRAVITY = -0.01;      // Downward acceleration (per frame)
-const START_Y = 1.0;        // Initial vertical position for dropping (relative to customToppingGroup)
-const SETTLED_Y = 0.05;     // The Y position where toppings rest (relative to customToppingGroup)
-const activePhysicsMeshes = []; // List of meshes currently undergoing physics simulation
+const GRAVITY = -0.01;      
+const START_Y = 1.0;       
+const SETTLED_Y = 0.05;     
+const activePhysicsMeshes = []; 
 // ---------------------------------------------------
 
 // --- Rhythm Game Variables ---
@@ -37,7 +36,7 @@ const ARROW_SYMBOLS = { 'ArrowUp': '↑', 'ArrowDown': '↓', 'ArrowLeft': '←'
 let mixingQuality = 0; // 0 to 100
 const NUM_SEGMENTS = 8; // For topping distribution score calculation
 
-// --- 🚨 RE-ADDED: Baking Variables ---
+// --- Baking Variables ---
 let isOvenOpen = false;
 let isBaking = false; 
 let bakingProgress = 0; // 0.0 to 1.0
@@ -52,7 +51,7 @@ let makingStep = 0; // 0: 시작, 1: 재료 추가, 2: 믹싱 중, 3: 반죽 완
 let selectedToppingType = null;
 let selectedCreamColor = 0xffffff;
 
-// 🚨 ADDED: Ingredient Adding Variables
+// Ingredient Adding Variables
 let ingredientStep = 0; // 0: flour, 1: sugar, 2: egg, 3: milk
 const INGREDIENT_SEQUENCE = [
     { name: 'flour', color: 0xffffff, message: '밀가루 (Flour)' },
@@ -62,7 +61,7 @@ const INGREDIENT_SEQUENCE = [
 ];
 // -----------------------------
 
-// 🚨 점수 및 미니게임 변수 추가
+// 점수 및 미니게임 변수 추가
 let score = 0;
 let toppingsCount = 0;
 const MAX_COMPLETENESS_COUNT = 25; 
@@ -87,13 +86,17 @@ const scoreOverlay = document.getElementById('score-overlay');
 const perspectiveCamera = new THREE.PerspectiveCamera(75, h_scr / v_scr, 0.1, 1000);
 perspectiveCamera.position.set(0, 2.0, 4); 
 
+// MODIFIED: up 벡터를 (0, 1, 0)으로 설정하여 카메라의 기울어짐(롤) 방지 및 중앙 정렬 보장
+perspectiveCamera.up.set(0, 1, 0); 
+
 const orthographicCamera = new THREE.OrthographicCamera(
     viewSize * aspect / -2, viewSize * aspect / 2, viewSize / 2, viewSize / -2, 0.1, 100
 );
 orthographicCamera.position.set(0, 5, 0);
 
 let currentCamera = perspectiveCamera;
-currentCamera.lookAt(0, 0, 0); 
+// MODIFIED: initial lookAt target을 작업 영역의 중앙 높이(0.5)로 변경 (기존 0, 0, 0)
+currentCamera.lookAt(0, 0.5, 0); 
 
 // 렌더러 설정
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -122,7 +125,7 @@ scene.add(frontLight);
 const lightColors = [0xffffff, 0xf183f3, 0x3de6c5, 0xffa500]; 
 let currentLightColorIndex = 0;
 
-// 🚨 MODIFIED: 배경 이미지 Texture Loading 및 투명 평면 적용
+// MODIFIED: 배경 이미지 Texture Loading 및 투명 평면 적용
 const loader = new THREE.TextureLoader();
 loader.load('./kitchen.jpg', function(texture) {
     const bgGeometry = new THREE.PlaneGeometry(20, 10);
@@ -139,7 +142,7 @@ loader.load('./kitchen.jpg', function(texture) {
     console.error('An error happened loading the kitchen background texture. Falling back to color.', err);
 });
 
-// 🚨 ADDED: Ingredient Textures Loading
+// ADDED: Ingredient Textures Loading
 const ingredientTextures = {};
 const textureLoader = new THREE.TextureLoader();
 const expectedIngredients = ['flour', 'sugar', 'egg', 'milk'];
@@ -149,11 +152,11 @@ function loadIngredientTexture(name, filename, isMaterialFallback = false) {
     textureLoader.load(filename, (texture) => {
         ingredientTextures[name] = texture;
         updateIngredientModels();
-    }, undefined, (err) => {
+    }, undefined, function(err) {
         console.error(`Error loading ${filename}. Falling back to color/material.`, err);
         // Use a placeholder color or material on failure
         if (isMaterialFallback) {
-             ingredientTextures[name] = new THREE.MeshStandardMaterial({ 
+            ingredientTextures[name] = new THREE.MeshStandardMaterial({ 
                 color: name === 'milk' ? 0xffffff : (name === 'egg' ? 0xf0e0c0 : 0xe0d8c0), 
                 roughness: 0.5
             });
@@ -187,7 +190,7 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 
-// 🚨 ADDED: Oven Model (MICROWAVE) (RE-ADDED)
+// ADDED: Oven Model (MICROWAVE) (RE-ADDED)
 const MICROWAVE_WIDTH = 2.5;
 const MICROWAVE_HEIGHT = 1.2;
 const MICROWAVE_DEPTH = 1.0;
@@ -226,7 +229,7 @@ doorPivot.add(ovenDoor);
 doorPivot.rotation.y = -Math.PI * 0.66; 
 isOvenOpen = true; 
 
-// 🚨 ADDED: Cake Pan Model (Cylinder) (RE-ADDED)
+
 const cakePanMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, roughness: 0.3 });
 const cakePanGeometry = new THREE.CylinderGeometry(1.5, 1.5, 0.2, 32);
 
@@ -237,16 +240,16 @@ cakePan.name = 'cakePan';
 cakePan.visible = false;
 scene.add(cakePan); 
 
-// Raw Batter Material (RE-ADDED)
+
 const rawBatterMaterial = new THREE.MeshStandardMaterial({ color: 0xfdebd0, roughness: 0.8 }); 
 
 
-// 🚨 ADDED: Ingredient Models Group (카운터 위에 놓을 재료들)
+// (카운터 위에 놓을 재료들)
 const ingredientGroup = new THREE.Group();
 ingredientGroup.position.y = 1.0; // 카운터 높이
 scene.add(ingredientGroup);
 
-// 🚨 ADDED: Function to create/recreate ingredient models (using textures)
+
 function createIngredientModels() {
     // Clear existing children
     ingredientGroup.children.length = 0; 
@@ -257,7 +260,7 @@ function createIngredientModels() {
         ? new THREE.MeshStandardMaterial({ map: flourTexture })
         : new THREE.MeshStandardMaterial({ color: flourTexture || 0xe0d8c0, roughness: 0.8, metalness: 0.1 });
         
-    // 🚨 MODIFIED: Simplified to single BoxGeometry to match user request for rectangular form
+
     const flourMesh = new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.8, 0.5),
         flourMaterial
@@ -273,7 +276,7 @@ function createIngredientModels() {
         ? new THREE.MeshStandardMaterial({ map: sugarTexture, side: THREE.DoubleSide })
         : new THREE.MeshStandardMaterial({ color: sugarTexture || 0xffffff, roughness: 0.9 });
         
-    // 🚨 MODIFIED: Simplified to single BoxGeometry (sugar bag/box)
+    // (sugar bag/box)
     const sugarMesh = new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.7, 0.5),
         sugarTopMaterial // Use the sugar texture/material directly on the box
@@ -291,7 +294,7 @@ function createIngredientModels() {
     const eggTexture = ingredientTextures['egg'];
     const basketMaterial = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.6, metalness: 0.1 }); 
 
-    // 🚨 MODIFIED: Basket base is now a rectangular box (tray)
+    // (tray)
     const basketBase = new THREE.Mesh(
         new THREE.BoxGeometry(1.0, 0.1, 1.0), // Wide, shallow tray
         basketMaterial
@@ -310,7 +313,7 @@ function createIngredientModels() {
     ingredientGroup.add(eggBasketGroup);
     
     
-    // --- Milk (우유 팩) - Textured Box with Spout/Cap (Kept as is) ---
+    // --- Milk (우유 팩) ---
     const milkTexture = ingredientTextures['milk'];
     const milkMaterial = milkTexture instanceof THREE.Texture
         ? new THREE.MeshStandardMaterial({ map: milkTexture })
@@ -318,7 +321,7 @@ function createIngredientModels() {
         
     const milkGroup = new THREE.Group();
     
-    // Base carton (0.4 x 0.7 x 0.4)
+    
     const milkBase = new THREE.Mesh(
         new THREE.BoxGeometry(0.4, 0.7, 0.4),
         milkMaterial
@@ -326,7 +329,7 @@ function createIngredientModels() {
     milkBase.position.y = 0.35;
     milkGroup.add(milkBase);
     
-    // Spout/Cap (0.2 x 0.1 x 0.2)
+    
     const milkSpout = new THREE.Mesh(
         new THREE.BoxGeometry(0.2, 0.1, 0.2), 
         new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.3 }) 
@@ -334,32 +337,32 @@ function createIngredientModels() {
     milkSpout.position.y = 0.7 + 0.05;
     milkGroup.add(milkSpout);
     
-    milkGroup.position.set(-0.5, 0.0, 1.8); // Front row position
+    milkGroup.position.set(-0.5, 0.0, 1.8); 
     milkGroup.name = 'milk';
     ingredientGroup.add(milkGroup);
 
     ingredientGroup.visible = false;
 }
 
-// Initial call to create models (will use placeholders/fallback if textures aren't loaded yet)
+
 createIngredientModels(); 
 
-// Function to call after each texture loads
+
 function updateIngredientModels() {
-    // Check if all textures (or fallbacks) are defined
+    
     const allLoaded = expectedIngredients.every(name => ingredientTextures.hasOwnProperty(name));
 
     if (allLoaded) {
-        // Recreate the models with loaded textures
+        
         createIngredientModels();
-        // If the game is already at making step 1, update the visibility state
+        
         if (gameMode === 'MAKING' && makingStep === 1) {
-             ingredientGroup.children.forEach(c => c.visible = true);
-             // Ensure correct ingredient visibility if some were already 'used'
-             for(let i = 0; i < ingredientStep; i++) {
-                 const name = INGREDIENT_SEQUENCE[i].name;
-                 const usedMesh = ingredientGroup.children.find(m => m.name === name);
-                 if (usedMesh) usedMesh.visible = false;
+            ingredientGroup.children.forEach(c => c.visible = true);
+            
+            for(let i = 0; i < ingredientStep; i++) {
+                const name = INGREDIENT_SEQUENCE[i].name;
+                const usedMesh = ingredientGroup.children.find(m => m.name === name);
+                if (usedMesh) usedMesh.visible = false;
              }
         }
     }
@@ -367,7 +370,7 @@ function updateIngredientModels() {
 
 
 // --- 4. 케이크 제작/모델링 요소 ---
-// 🚨 텍스처 제거 및 Material 개선
+// 텍스처 제거 및 Material 개선
 const bakedMaterial = new THREE.MeshStandardMaterial({ 
     color: 0xe0b28a, 
     roughness: 0.8, 
@@ -383,7 +386,7 @@ const chocolateMaterial = new THREE.MeshPhongMaterial({ color: 0x8b4513, shinine
 const macaronMaterial = new THREE.MeshPhongMaterial({ color: 0xe0e0e0, shininess: 80 }); 
 const beanMaterial = new THREE.MeshPhongMaterial({ color: 0x803333, shininess: 20 }); 
 
-// 🚨 파이핑 크림 재질
+// 파이핑 크림 재질
 const pipingMaterial = new THREE.MeshStandardMaterial({ 
     color: PIPING_CREAM_COLOR, 
     roughness: 0.5, 
@@ -584,7 +587,7 @@ function updateCakeTheme() {
 
 
 // --- 6. 모드 전환 및 제작 단계 로직 (중략 - 기존 코드 유지) ---
-// 🚨 점수 표시 업데이트 함수
+// 점수 표시 업데이트 함수
 function updateScoreDisplay() {
     const finalScore = Math.max(0, Math.round(score + (toppingsCount * 2)));
     const scoreElement = document.getElementById('score-value');
@@ -601,7 +604,7 @@ function updateScoreDisplay() {
     }
 }
 
-// 🚨 Topping Balance Quality Mini-game Score Calculation (중략 - 기존 코드 유지)
+// Topping Balance Quality Mini-game Score Calculation 
 function calculateToppingScore() {
     let balanceScore = 0;
     let totalToppings = customToppingGroup.children.length;
@@ -653,8 +656,8 @@ function setGameMode(mode) {
     bowlGroup.visible = false;
     cakeGroup.visible = false;
     ingredientGroup.visible = false;
-    ovenGroup.visible = false; // 🚨 ADDED: Oven hide
-    cakePan.visible = false; // 🚨 ADDED: Pan hide
+    ovenGroup.visible = false; 
+    cakePan.visible = false; 
 
     
     mainCandleGroup.visible = true;
@@ -673,29 +676,29 @@ function setGameMode(mode) {
 
         ingredientGroup.visible = false;
         
-        messageElement.innerHTML = `**Little Patissier's Dream**<br>케이크 제작 시뮬레이션을 시작합니다!<br><span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽 믹싱 재료를 준비하세요.`;
+        messageElement.innerHTML = `Little Patissier's Dream<br>케이크 제작 시뮬레이션을 시작합니다!<br><span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽 믹싱 재료를 준비하세요.`;
         messageElement.style.display = 'block';
         mixingQuality = 0;
         
-        // 🚨 ADDED: Reset camera to standard, non-tilted view for MAKING mode
+        // 정면 시야를 위해 카메라 위치와 up 벡터를 재설정합니다.
         perspectiveCamera.position.set(0, 2.0, 4); 
-        perspectiveCamera.up.set(0, 1, 0);
+        perspectiveCamera.up.set(0, 1, 0); 
         perspectiveCamera.lookAt(0, 0.5, 0);
 
         
     } else if (mode === 'DECORATING') {
-        // 🚨 ADDED/FIXED: Ensure cake is visible and reset position for decoration
+        
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
-        cakeGroup.position.set(0, 0.5, 0); // Center the cake for decorating
+        cakeGroup.position.set(0, 0.5, 0);
 
         score = 0;
         toppingsCount = 0;
         customToppingGroup.children.length = 0; 
         updateScoreDisplay();
         
-        messageElement.innerHTML = `**장식 모드**<br>팔레트에서 <span class="highlight">생크림 색상</span> 또는 <span class="highlight">토핑</span> 선택 후 케이크 윗면을 <span class="highlight">클릭/드래그</span>.<br>완료 후 <span style="color: #f8bbd0;">[Enter]</span> 또는 <span style="color: #f8bbd0;">[Spacebar]</span> 키를 누르세요.`;
+        messageElement.innerHTML = `장식 모드<br>팔레트에서 <span class="highlight">생크림 색상</span> 또는 <span class="highlight">토핑</span> 선택 후 케이크 윗면을 <span class="highlight">클릭/드래그</span>.<br>완료 후 <span style="color: #f8bbd0;">[Enter]</span> 또는 <span style="color: #f8bbd0;">[Spacebar]</span> 키를 누르세요.`;
         messageElement.style.display = 'block';
         paletteContainer.style.display = 'block';
         scoreOverlay.style.display = 'block';
@@ -709,23 +712,23 @@ function setGameMode(mode) {
         document.querySelector('.palette-item[data-color="0xffffff"]').classList.add('selected');
 
     } else if (mode === 'VIEWING') {
-        // 🚨 ADDED: Ensure oven timer is hidden/removed if it exists
+
         if (ovenTimerElement && ovenTimerElement.parentElement) {
             ovenTimerElement.parentElement.removeChild(ovenTimerElement);
-            ovenTimerElement = null; // Clear global reference
+            ovenTimerElement = null; 
         }
         
-        // 🚨 FIXED: Ensure cake is visible and reset rotation/position for viewing
+        
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
         
-        // Reset rotation and position
+        
         cakeGroup.rotation.y = 0;
         customToppingGroup.rotation.y = 0;
         cakeGroup.position.set(0, 0.5, 0); // Center the cake
 
-        // 🚨 ADDED: Reset camera to standard, non-tilted view
+        // 정면 시야를 위해 카메라 위치와 up 벡터를 재설정합니다.
         perspectiveCamera.position.set(0, 2.0, 4); 
         perspectiveCamera.up.set(0, 1, 0); // Ensure the up vector is vertical (no roll/tilt)
         perspectiveCamera.lookAt(0, 0.5, 0); // Look at the vertical center of the cake
@@ -767,7 +770,7 @@ function advanceMakingStep() {
         ingredientGroup.children.forEach(m => m.visible = true);
         
         const currentIngredient = INGREDIENT_SEQUENCE[ingredientStep];
-        messageElement.innerHTML = `**재료 추가 단계**<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
+        messageElement.innerHTML = `재료 추가 단계<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
         messageElement.style.display = 'block';
         
     } else if (makingStep === 2) { 
@@ -813,7 +816,7 @@ function advanceMakingStep() {
         
         document.getElementById('rhythm-mixer').style.display = 'none';
         
-        // Mixing quality visual feedback (color change)
+        
         const perfectColor = new THREE.Color(0xf4d03f);
         const poorColor = new THREE.Color(0xffffe0); 
         const finalColor = poorColor.lerp(perfectColor, qualityRatio); 
@@ -825,37 +828,37 @@ function advanceMakingStep() {
 
         let qualityMessage;
         if (qualityRatio >= 0.9) {
-            qualityMessage = "✨ **최고의 반죽!** 황금빛 반죽이 완성되었습니다. (+" + mixingScore + "점)";
+            qualityMessage = "✨ 최고의 반죽! 황금빛 반죽이 완성되었습니다. (+" + mixingScore + "점)";
         } else if (qualityRatio >= 0.5) {
-            qualityMessage = "✅ **좋은 반죽!** 무난하게 믹싱되었습니다. (+" + mixingScore + "점)";
+            qualityMessage = "✅ 좋은 반죽! 무난하게 믹싱되었습니다. (+" + mixingScore + "점)";
         } else {
-            qualityMessage = "❌ **믹싱 부족!** 리듬감이 부족했어요. (+" + mixingScore + "점)";
+            qualityMessage = "❌ 믹싱 부족! 리듬감이 부족했어요. (+" + mixingScore + "점)";
         }
 
-        // Set up the scene for pouring
+        
         bowlGroup.visible = true;
         bowlGroup.position.set(-1.5, 1.0, 0.5); 
         
-        // Show Pan on counter 
+        
         cakePan.position.set(-0.5, 1.0 + 0.1, 0.5); 
         cakePan.visible = true;
         cakePan.userData.poured = false;
         
-        // Raw Batter Material setup
+        
         cakePan.material = cakePanMaterial.clone(); 
         cakePan.material.needsUpdate = true;
         
-        // Remove old batter mesh if it exists
+        
         if (cakePan.userData.batter) {
             cakePan.remove(cakePan.userData.batter);
             delete cakePan.userData.batter;
         }
         
-        // Add oven to scene 
+        
         ovenGroup.position.set(2.0, 0.0, 0.0); 
         ovenGroup.visible = true; 
         
-        // Reset/Open oven door initially
+        
         doorPivot.rotation.y = -Math.PI * 0.66; 
         isOvenOpen = true;
         isBaking = false;
@@ -865,24 +868,25 @@ function advanceMakingStep() {
         messageElement.style.display = 'block';
 
     } else if (makingStep === 4) { 
-        // 🚨 MODIFIED: **Making Step 4: Baking Complete / Transition**
+        
+
         
         bowlGroup.visible = false;
         ovenGroup.visible = false; 
         
-        // Cake is now ready for decoration. Show the finished cake model (cakeGroup).
+        
         cakeGroup.visible = true;
         cakeBody.visible = true;
         creamTop.visible = true;
         
-        // Determine final cake color based on baking progress
+        
         let finalCakeColor;
         if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
-            finalCakeColor = new THREE.Color(0xe0b28a); // Golden Brown (Perfect/Good)
+            finalCakeColor = new THREE.Color(0xe0b28a); 
             score += 50;
         } else if (bakingProgress < 1.0) {
              finalCakeColor = new THREE.Color(0xf1e4c3); // Undercooked pale color
-             score += 10;
+            score += 10;
         } else {
             finalCakeColor = new THREE.Color(0x734848); // Burnt dark color
             score += 0;
@@ -989,6 +993,8 @@ window.addEventListener('keydown', (e) => {
 
             currentCamera = perspectiveCamera;
             currentCamera.lookAt(targetPosition); 
+            // 시점 변경 시 카메라의 기울어짐(roll)을 방지하도록 up 벡터를 명시적으로 설정
+            currentCamera.up.set(0, 1, 0); 
             currentCamera.updateProjectionMatrix();
         }
     }
@@ -1003,7 +1009,7 @@ window.addEventListener('keydown', (e) => {
             advanceMakingStep();
             e.preventDefault(); 
             return;
-        } else if (makingStep === 2 && rhythmActive === false) { // 🚨 ADDED: Rhythm Timeout -> Mixing Complete (2 -> 3) FIX
+        } else if (makingStep === 2 && rhythmActive === false) { // Rhythm Timeout -> Mixing Complete (2 -> 3) FIX
             advanceMakingStep(); 
             e.preventDefault();
             return;
@@ -1012,7 +1018,7 @@ window.addEventListener('keydown', (e) => {
             e.preventDefault(); 
             return;
         } 
-        /* 🚨 REMOVED: makingStep 4 to 5 transition is now handled by modal button click. */
+        /* makingStep 4 to 5 transition is now handled by modal button click. */
     }
 
     const isEnterOrSpace = (k === 'enter' || isSpace);
@@ -1085,7 +1091,7 @@ window.addEventListener('mousemove', onMouseMove);
 window.addEventListener('mouseup', onMouseUp);
 
 
-// 🚨 파이핑 조각 생성 함수 (원뿔 모양)
+// 파이핑 조각 생성 함수 (원뿔 모양)
 function createPipingSegment(x, y, z) {
     const distance = new THREE.Vector2(x, z).length();
     if (distance > MAX_TOPPING_RADIUS) return; 
@@ -1116,7 +1122,7 @@ function createPipingSegment(x, y, z) {
     updateScoreDisplay();
 }
 
-// 🚨 MODIFIED: Ingredient Click Handler
+// MODIFIED: Ingredient Click Handler
 function onIngredientClick(event) {
     if (gameMode !== 'MAKING' || makingStep !== 1) return;
     
@@ -1559,7 +1565,7 @@ function animate() {
         }
     });
 
-    // 🚨 ADDED: 스플래쉬 이벤트 애니메이션 처리
+    // 스플래쉬 이벤트 애니메이션 처리
     const meshesToRemove = [];
     activeSplashMeshes.forEach(item => {
         item.timer++;
@@ -1590,8 +1596,12 @@ function animate() {
 
     if (currentCamera === perspectiveCamera) {
         currentCamera.lookAt(targetPosition);
+        // lookAt 호출 후 up 벡터를 명시적으로 재설정하여 롤(roll) 방지
+        currentCamera.up.set(0, 1, 0); 
     } else if (currentCamera === orthographicCamera) {
         currentCamera.lookAt(targetPosition);
+        // lookAt 호출 후 up 벡터를 명시적으로 재설정하여 롤(roll) 방지
+        currentCamera.up.set(0, 1, 0); 
     }
 
     renderer.render(scene, currentCamera);

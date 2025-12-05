@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Gaegu&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link rel="stylesheet" href="./style.css"> <style>
-        /* (CSS 코드가 style.css로 이동되었습니다. 여기에 있던 코드는 style.css 파일에 있습니다.) */
+        
     </style>
 </head>
 <body>
@@ -26,7 +26,7 @@
     </div>
     
     <div id="message">
-        **Little Patissier's Dream**<br>케이크 제작 시뮬레이션을 시작합니다!<br>
+        Little Patissier's Dream<br>케이크 제작 시뮬레이션을 시작합니다!<br>
         <span style="color: #f8bbd0;">[Spacebar]</span>를 눌러 반죽 및 믹싱 과정을 진행하세요.
     </div>
 
@@ -41,8 +41,8 @@
     <div id="palette-container">
         <div>🍰 생크림 색상 선택 (클릭 후 케이크 클릭)</div>
         <div id="cream-palette">
-            <div class="palette-item selected" data-type="cream" data-color="0xffffff" style="background-color: #ffffff;">흰색</div>
-            <div class="palette-item" data-type="cream" data-color="0xffc0cb" style="background-color: #ffc0cb;">핑크</div>
+            <div class="palette-item selected" data-type="cream" data-color="0xffffff" style="background-color: #ffffff;">우유</div>
+            <div class="palette-item" data-type="cream" data-color="0xffc0cb" style="background-color: #ffc0cb;">딸기</div>
             <div class="palette-item" data-type="cream" data-color="0x5a8d41" style="background-color: #5a8d41;">녹차</div>
             <div class="palette-item" data-type="cream" data-color="0xffd700" style="background-color: #ffd700;">고구마</div>
         </div>
@@ -53,7 +53,7 @@
             <div class="palette-item" data-type="sprinkle" style="background-color: #e0e0e0;">스프링클</div>
             <div class="palette-item" data-type="drizzle" style="background-color: #a0522d;">초콜릿</div>
             <div class="palette-item" data-type="cherry" style="background-color: #ff0000; color: white;">체리</div>
-            <div class="palette-item" data-type="piping" style="background-color: #ffffff; color: #333; border-color: #d81b60;">파이핑</div>
+            <div class="palette-item" data-type="piping" style="background-color: #ffffff; color: #333; border-color: #d81b60;">생크림</div>
         </div>
     </div>
 
@@ -71,7 +71,7 @@
 
 <script src="./cake_app.js"></script>
 <script>
-// renderer.setAnimationLoop(animate); 🚨 REMOVED: 게임 시작 느린 점 개선을 위해 초기 실행 제거
+
 
 
 // 초기 모드 설정 (타이틀 화면에서 시작)
@@ -79,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 캔버스가 초기에는 숨겨지도록 합니다.
     renderer.domElement.style.display = 'none';
     
-    // 🚨 MODIFIED: Ensure modal is hidden on page load
     const transitionModal = document.getElementById('transition-modal');
     if (transitionModal) {
         transitionModal.style.display = 'none';
@@ -89,18 +88,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('start-button').addEventListener('click', () => {
         document.getElementById('title-screen').style.display = 'none'; // 타이틀 화면 숨기기
         renderer.domElement.style.display = 'block'; // 캔버스 보이기
-        renderer.setAnimationLoop(animate); // 🚨 ADDED: 게임 시작 버튼 클릭 시 애니메이션 루프 시작
+        renderer.setAnimationLoop(animate); // 게임 시작 버튼 클릭 시 애니메이션 루프 시작
         setGameMode('MAKING'); // 게임 시작 플로우 실행
     });
 
-    // 🚨 ADDED: Transition Modal Button Listener
     const startDecoratingButton = document.getElementById('start-decorating-button');
     if (startDecoratingButton) {
         startDecoratingButton.addEventListener('click', () => {
             document.getElementById('transition-modal').style.display = 'none';
             // Manually set the step to 4 (Baking Complete state) and advance to 5 (DECORATING)
             if (typeof makingStep !== 'undefined' && makingStep === 4) {
-                 advanceMakingStep(); 
+                advanceMakingStep(); 
             }
         });
     }
