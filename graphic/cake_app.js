@@ -104,6 +104,7 @@ let bakingProgress = 0; // 0.0 to 1.0
 const BAKING_DURATION = 8000; // 8 seconds for perfect bake
 let bakingStartTime = 0;
 let ovenTimerElement = null; // HTML timer element
+let bakingResultMessage = ''; // MODIFIED: Global variable to hold baking status for modal
 // -----------------------------
 
 // --- 모드 변수 ---
@@ -256,7 +257,7 @@ const MICROWAVE_WIDTH = 2.5;
 const MICROWAVE_HEIGHT = 1.2;
 const MICROWAVE_DEPTH = 1.0;
 
-const ovenBodyMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.2 }); 
+const ovenBodyMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9, roughness: 0.2 }); // MODIFIED: Oven body color brighter 
 const ovenDoorMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, transparent: true, opacity: 0.8, metalness: 0.8, roughness: 0.1 }); 
 const ovenPanelMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5, roughness: 0.4 }); 
 
@@ -727,8 +728,8 @@ function setGameMode(mode) {
     
     if (mode === 'MAKING') {
         bowlGroup.visible = true;
-        cakeBody.visible = false;
-        creamTop.visible = false;
+        // cakeBody.visible = false; // MODIFIED: Redundant, removed to fix bug
+        // creamTop.visible = false; // MODIFIED: Redundant, removed to fix bug
         
         makingStep = 0;
         ingredientStep = 0;
@@ -838,8 +839,6 @@ function advanceMakingStep() {
         const currentIngredient = INGREDIENT_SEQUENCE[ingredientStep];
         messageElement.innerHTML = `재료 추가 단계<br><span class="highlight">순서대로 재료를 클릭</span>하여 믹싱 볼에 넣으세요.<br>다음 재료: <span style="color: #d81b60; font-size: 1.2em; font-weight: bold;">${currentIngredient.message}</span>`;
         messageElement.style.display = 'block';
-        
-        play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 단계 진행
         
     } else if (makingStep === 2) { 
         
@@ -953,7 +952,7 @@ function advanceMakingStep() {
         
         
         let finalCakeColor;
-        if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
+        if (bakingProgress >= 1.0 && bakingProgress <= 1.00001) { 
             finalCakeColor = new THREE.Color(0xcc8855); // 노릇노릇/진하게 (Perfect)
             score += 50;
             play_success_sfx(); // ✅ 성공/정답 효과음: 베이킹 성공
@@ -972,8 +971,15 @@ function advanceMakingStep() {
 
         cakePan.visible = false; 
         
+        // MODIFIED: Update modal message content before displaying it
+        const modalMessageElement = document.getElementById('modal-baking-status');
+        if (modalMessageElement) {
+            const statusContent = bakingResultMessage.replace(/^(?:❌ |✨ )/g, ''); // Remove leading emoji/status
+            modalMessageElement.innerHTML = `${statusContent}<br>이제 생일 케이크를 장식할 시간이에요.`;
+        }
+        
         document.getElementById('transition-modal').style.display = 'flex';
-        messageElement.style.display = 'none';
+        // messageElement.style.display = 'none'; // MODIFIED: 이전 단계의 메시지를 유지하기 위해 제거 
         
         return; // Wait for button click.
         
@@ -1285,11 +1291,11 @@ function onMouseDown(event) {
 
         raycaster.setFromCamera(mouse, currentCamera);
         
-        // Get the bowl mesh for interaction
-        const bowlMesh = bowlGroup.children.find(c => c.geometry.type === 'CylinderGeometry' && c.material.side === THREE.BackSide);
+        // MODIFIED: Use global 'bowl' variable which now refers to the mesh itself.
+        // const bowlMesh = bowlGroup.children.find(c => c.geometry.type === 'CylinderGeometry' && c.material.side === THREE.BackSide); // OLD: This logic is now incorrect.
         
         // List of interactable objects in this step: Bowl, Pan, Oven Door
-        const interactables = [bowlMesh, cakePan, doorPivot.children[0]]; 
+        const interactables = [bowl, cakePan, doorPivot.children[0]]; // MODIFIED: Use global 'bowl' variable directly
         const intersects = raycaster.intersectObjects(interactables, true);
 
         if (intersects.length > 0) {
@@ -1297,7 +1303,7 @@ function onMouseDown(event) {
             const clickedName = clickedObject.name || clickedObject.parent.name;
             
             // Sub-step 0: Pouring (Click Bowl)
-            if (clickedObject === bowlMesh && cakePan.userData.poured === false) {
+            if (clickedObject === bowl && cakePan.userData.poured === false) { // MODIFIED: Use global 'bowl' variable directly
                 
                 // 🚨 MODIFIED: INSTANT POUR (Animation Removed)
                 bowlGroup.visible = false;
@@ -1362,10 +1368,10 @@ function onMouseDown(event) {
                     play_normal_click_sfx(); // ✅ 일반 클릭 효과음: 오븐 문 열기
                     
                     // Check baking progress
-                    if (bakingProgress >= 1.0 && bakingProgress <= 1.5) { 
-                        messageElement.innerHTML = `✨ **성공!** 케이크가 황금빛으로 완벽하게 구워졌습니다!`;
+                    if (bakingProgress >= 1.0 && bakingProgress <= 1.00001) { 
+                        bakingResultMessage = `✨ 케이크가 황금빛으로 완벽하게 구워졌습니다!`;
+                        messageElement.innerHTML = `✨ **성공!** ${bakingResultMessage}`;
                         messageElement.style.display = 'block';
-                        // Move to next step (Baking Complete)
                         advanceMakingStep(); // 3 -> 4
                         
                     } else {
@@ -1377,10 +1383,10 @@ function onMouseDown(event) {
                             statusMsg = '타버렸습니다';
                         }
                         
-                        messageElement.innerHTML = `❌ **실패!** 케이크가 ${statusMsg}! 장식은 가능하지만 점수는 낮습니다.`;
+                        bakingResultMessage = `❌ 케이크가 ${statusMsg}! 점수는 낮지만 장식은 가능합니다.`; // MODIFIED: Store full failure message
+                        messageElement.innerHTML = `❌ **실패!** ${bakingResultMessage}`;
                         messageElement.style.display = 'block';
                         
-                        // Proceed with the imperfect cake
                         advanceMakingStep(); // 3 -> 4 
                     }
                     
